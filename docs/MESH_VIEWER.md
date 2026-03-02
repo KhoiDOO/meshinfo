@@ -63,6 +63,7 @@ Displays comprehensive mesh statistics in the console:
 | Key | Action | Description |
 |-----|--------|-------------|
 | **O** | Open File | Open file dialog to load mesh file(s) - supports multiple selection |
+| **Tab** | Open & Append | Open file dialog to load mesh file(s) and append it to the current mesh buffer |
 | **J** | Solid Mode | Render mesh with filled polygons |
 | **K** | Wireframe Mode | Render mesh with edges only |
 | **L** | Combined Mode | Render both solid and wireframe |
