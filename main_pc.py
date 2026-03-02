@@ -46,6 +46,7 @@ class PointViewer:
         self.pc_layout_padding = MESH_LAYOUT_PADDING
 
         self.last_o_state = glfw.RELEASE
+        self.last_tab_state = glfw.RELEASE
         self.last_p_state = glfw.RELEASE
         self.last_u_state = glfw.RELEASE
         self.last_left_bracket_state = glfw.RELEASE
@@ -84,15 +85,18 @@ class PointViewer:
         self.use_override_loc = glGetUniformLocation(self.shader, "useOverride")
         self.point_size_loc = glGetUniformLocation(self.shader, "pointSize")
     
-    def open_file_dialog(self):
+    def open_file_dialog(self, renew_buffers=True):
         file_paths = show_open_file_dialog(
             DIALOG_TITLE_SELECT_POINT_CLOUD,
             POINT_CLOUD_FILE_TYPES,
             allow_multiple=True,
         )
 
+        if renew_buffers:
+            self.point_buffers = []
+
         if file_paths:
-            self.load_pc(file_paths) 
+            self.load_pc(file_paths)
     
     def get_color_scheme(self):
         """Return color scheme based on current theme."""
@@ -182,8 +186,14 @@ class PointViewer:
         # Handle 'O' for Open
         o_state = glfw.get_key(self.window, glfw.KEY_O)
         if o_state == glfw.PRESS and self.last_o_state == glfw.RELEASE:
-            self.open_file_dialog()
+            self.open_file_dialog(renew_buffers=True)
         self.last_o_state = o_state
+
+        # Handle "Tab" for Open without renewing buffers
+        tab_state = glfw.get_key(self.window, glfw.KEY_TAB)
+        if tab_state == glfw.PRESS and self.last_tab_state == glfw.RELEASE:
+            self.open_file_dialog(renew_buffers=False)
+        self.last_tab_state = tab_state
 
         # Handle 'U' for toggle color theme
         u_state = glfw.get_key(self.window, glfw.KEY_U)
@@ -194,6 +204,25 @@ class PointViewer:
                 for buffer in self.point_buffers:
                     buffer.refresh_colors(colors_scheme)
         self.last_u_state = u_state
+
+        # Handle [ and ] for layout spacing
+        left_bracket_state = glfw.get_key(self.window, glfw.KEY_LEFT_BRACKET)
+        if left_bracket_state == glfw.PRESS and self.last_left_bracket_state == glfw.RELEASE:
+            self.pc_layout_padding = max(
+                PC_LAYOUT_PADDING_MIN,
+                self.pc_layout_padding - PC_LAYOUT_PADDING_STEP,
+            )
+            self.layout_pcs()
+        self.last_left_bracket_state = left_bracket_state
+
+        right_bracket_state = glfw.get_key(self.window, glfw.KEY_RIGHT_BRACKET)
+        if right_bracket_state == glfw.PRESS and self.last_right_bracket_state == glfw.RELEASE:
+            self.pc_layout_padding = min(
+                PC_LAYOUT_PADDING_MAX,
+                self.pc_layout_padding + PC_LAYOUT_PADDING_STEP,
+            )
+            self.layout_pcs()
+        self.last_right_bracket_state = right_bracket_state
 
         # Handle SPACE for toggling camera rotation
         space_state = glfw.get_key(self.window, glfw.KEY_SPACE)
