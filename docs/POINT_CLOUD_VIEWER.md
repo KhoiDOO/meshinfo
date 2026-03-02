@@ -47,6 +47,7 @@ Then press **O** to open a point cloud file.
 | Key | Action | Description |
 |-----|--------|-------------|
 | **O** | Open File | Open file dialog to load point cloud file(s) - supports multiple selection |
+| **Tab** | Open & Append | Open file dialog to load point cloud file(s) and append it to the current point buffer |
 | **P** | Cycle Point Size | Adjust point rendering size for better visibility |
 | **U** | Toggle Color Theme | Switch between dark and light background themes |
 | **SPACE** | Toggle Camera Rotation | Switch between automatic rotation and manual control |
