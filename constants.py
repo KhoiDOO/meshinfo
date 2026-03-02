@@ -114,6 +114,12 @@ MESH_LAYOUT_PADDING_STEP = 0.1
 MESH_LAYOUT_PADDING_MIN = 0.0
 MESH_LAYOUT_PADDING_MAX = 5.0
 
+# Point Cloud Visualization
+PC_LAYOUT_PADDING = 0.2  # Extra spacing between point clouds in grid layout
+PC_LAYOUT_PADDING_STEP = 0.1
+PC_LAYOUT_PADDING_MIN = 0.0
+PC_LAYOUT_PADDING_MAX = 5.0
+
 # Camera Projection
 CAMERA_FOV = 45.0  # Field of view in degrees
 CAMERA_NEAR_PLANE = 0.1
