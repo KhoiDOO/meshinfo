@@ -52,6 +52,7 @@ class MeshViewer:
         self.mesh_layout_padding = MESH_LAYOUT_PADDING
 
         self.last_o_state = glfw.RELEASE
+        self.last_tab_state = glfw.RELEASE
         self.last_i_state = glfw.RELEASE
         self.last_j_state = glfw.RELEASE
         self.last_k_state = glfw.RELEASE
@@ -102,12 +103,15 @@ class MeshViewer:
         self.use_override_loc = glGetUniformLocation(self.shader, "useOverride")
         self.point_size_loc = glGetUniformLocation(self.shader, "pointSize")
 
-    def open_file_dialog(self):
+    def open_file_dialog(self, renew_buffers=True):
         file_paths = show_open_file_dialog(
             DIALOG_TITLE_SELECT_MESH,
             MESH_FILE_TYPES,
             allow_multiple=True,
         )
+
+        if renew_buffers:
+            self.mesh_buffers = []
 
         if file_paths:
             self.load_mesh(file_paths)
@@ -301,6 +305,12 @@ class MeshViewer:
         if o_state == glfw.PRESS and self.last_o_state == glfw.RELEASE:
             self.open_file_dialog()
         self.last_o_state = o_state
+
+        # Handle "Tab" for Open without renewing buffers
+        tab_state = glfw.get_key(self.window, glfw.KEY_TAB)
+        if tab_state == glfw.PRESS and self.last_tab_state == glfw.RELEASE:
+            self.open_file_dialog(renew_buffers=False)
+        self.last_tab_state = tab_state
 
         # Handle 'C' for Capture Screenshot
         c_state = glfw.get_key(self.window, glfw.KEY_C)
