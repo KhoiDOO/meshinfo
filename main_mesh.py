@@ -10,12 +10,12 @@ import math
 
 from PIL import Image
 
-from utils.io import load_mesh
-from utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
-from analysis.mesh import MeshInfo
-from buffer.mesh_buffer import MeshBuffer
+from meshanalysis.utils.io import load_mesh
+from meshanalysis.utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
+from meshanalysis.analysis.mesh import MeshInfo
+from meshanalysis.buffer.mesh_buffer import MeshBuffer
 
-from constants import *
+from meshanalysis.constants import *
 
 class MeshViewer:
     def __init__(self):
