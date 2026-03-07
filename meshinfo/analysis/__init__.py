@@ -1,5 +1,5 @@
 from colorama import Fore, Style, init
-from meshanalysis.constants import FORMAT_PRECISION_FLOAT
+from ..constants import FORMAT_PRECISION_FLOAT
 
 init(autoreset=True)
 

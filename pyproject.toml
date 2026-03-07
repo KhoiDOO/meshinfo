@@ -3,8 +3,8 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "meshviewer"
-version = "0.0.1"
+name = "meshinfo"
+version = "0.0.2"
 description = "3D mesh and point cloud visualization toolkit with analysis utilities"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,4 +37,4 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["meshanalysis*"]
+include = ["meshinfo*"]

@@ -10,12 +10,12 @@ import math
 
 from PIL import Image
 
-from meshanalysis.utils.io import load_mesh
-from meshanalysis.utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
-from meshanalysis.analysis.mesh import MeshInfo
-from meshanalysis.buffer.mesh_buffer import MeshBuffer
+from meshinfo.utils.io import load_mesh
+from meshinfo.utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
+from meshinfo.analysis.mesh import MeshInfo
+from meshinfo.buffer.mesh_buffer import MeshBuffer
 
-from meshanalysis.constants import *
+from meshinfo.constants import *
 
 class MeshViewer:
     def __init__(self):
@@ -110,10 +110,10 @@ class MeshViewer:
             allow_multiple=True,
         )
 
-        if renew_buffers:
-            self.mesh_buffers = []
-
         if file_paths:
+            if renew_buffers:
+                self.mesh_buffers = []
+            
             self.load_mesh(file_paths)
     
     def capture_screenshot(self):

@@ -110,6 +110,19 @@ def get_nonmanifold_vertices(mesh: trimesh.Trimesh) -> np.ndarray:
     
     return np.array(sorted(list(nonmanifold_vertices)), dtype=np.int32)
 
+def get_num_dup_faces(mesh: trimesh.Trimesh) -> int:
+    # Count duplicate faces by sorting the vertex indices of each face
+    sorted_faces = np.sort(mesh.faces, axis=1)
+    unique_faces, counts = np.unique(sorted_faces, axis=0, return_counts=True)
+    num_dup_faces = np.sum(counts[counts > 1] - 1).item()  # Count duplicates beyond the first occurrence
+    return num_dup_faces
+
+def get_sphericity(volume, area) -> float:
+    if volume == 0 or area == 0:
+        return 0.0
+    sphericity = (np.pi ** (1/3)) * ((6 * volume) ** (2/3)) / area
+    return sphericity
+
 
 class MeshInfo:
     def __init__(self, mesh: trimesh.Trimesh, name: str = "Mesh"):
@@ -119,6 +132,7 @@ class MeshInfo:
         self.non_watertight_components = mesh.split(only_watertight=False)
         self.watertight_components = mesh.split(only_watertight=True)
         self.genus = 1 - (len(mesh.vertices) - len(mesh.edges_unique) + len(mesh.faces)) / 2
+        self.num_dup_faces = get_num_dup_faces(mesh)
 
         self.vertex_defects: np.ndarray = mesh.vertex_defects
         self.vertex_degree: np.ndarray = mesh.vertex_degree
@@ -168,6 +182,7 @@ class MeshInfo:
         self.analysis = {
             "area": mesh.area,
             "volume": mesh.volume,
+            "sphericity": get_sphericity(mesh.volume, mesh.area),
             "bounds": mesh.bounds,
             "center_mass": mesh.center_mass,
             "centroid": mesh.centroid,
@@ -205,8 +220,9 @@ class MeshInfo:
             "max_face_angle[deg]": float(np.degrees(self.face_angles.max())),
             "min_face_area": float(self.face_areas.min()),
             "max_face_area": float(self.face_areas.max()),
-            "min_dihedral_angle[deg]": float(np.degrees(np.min(self.face_adjacency_angles))),
-            "max_dihedral_angle[deg]": float(np.degrees(np.max(self.face_adjacency_angles))),
+            "min_dihedral_angle[deg]": float(np.degrees(np.min(self.face_adjacency_angles))) if len(self.face_adjacency_angles) > 0 else None,
+            "max_dihedral_angle[deg]": float(np.degrees(np.max(self.face_adjacency_angles))) if len(self.face_adjacency_angles) > 0 else None,
+            "num_dup_faces": self.num_dup_faces,
         }
     
     def __str__(self):
@@ -300,6 +316,8 @@ class MeshInfo:
         info_str += f"  {Fore.CYAN}{'min / max dihedral_angle[deg]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
         info_str += f"{format_value(self.faces_info['min_dihedral_angle[deg]'])} / "
         info_str += f"{format_value(self.faces_info['max_dihedral_angle[deg]'])}\n"
+
+        info_str += f"  {Fore.CYAN}{'num_dup_faces':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.faces_info['num_dup_faces'])}\n"
         
         info_str += f"\n{Fore.CYAN}{Style.BRIGHT}╚═══════════════════════╝{Style.RESET_ALL}"
         return info_str

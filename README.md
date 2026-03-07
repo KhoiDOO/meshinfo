@@ -1,6 +1,6 @@
-# Mesh Viewer for Research
+# Mesh Analysis and Visualization for Research
 
-A powerful 3D mesh and point cloud visualization toolkit built with OpenGL and Python. Load, inspect, and analyze 3D mesh and point cloud files with real-time rendering and comprehensive geometric analysis.
+A powerful 3D mesh and point cloud analysis and visualization toolkit built with OpenGL and Python. Load, inspect, and analyze 3D mesh and point cloud files with real-time rendering and comprehensive geometric analysis.
 
 ## Overview
 
@@ -10,6 +10,37 @@ This project provides two complementary visualization applications for 3D data r
 |---|---|---|---|
 | **`main_mesh.py`** (Mesh Viewer) | Full topology analysis and mesh visualization | OBJ, STL, PLY, GLB, OFF | Mesh validation, defect detection, multi-mesh comparison |
 | **`main_pc.py`** (Point Cloud Viewer) | Large-scale point cloud visualization | XYZ | LiDAR analysis, point cloud inspection, multi-cloud comparison |
+
+## Installation
+
+### Requirements
+- Python 3.7+
+- OpenGL 3.3+ capable graphics card
+- 2GB+ RAM (4GB+ for large point clouds)
+
+### Setup
+
+**Platform-Specific Environment Setup:**
+
+```bash
+# For macOS
+conda env create -f env_yaml/mac_env.yml
+conda activate meshviewer
+
+# For Windows
+conda env create -f env_yaml/win_env.yml
+conda activate meshviewer
+```
+
+**Or install dependencies manually:**
+```bash
+pip install glfw PyOpenGL numpy pyrr pillow trimesh python-fcl colorama
+```
+
+**Install Python Package:**
+```bash
+pip install git+https://github.com/KhoiDOO/meshinfo.git
+```
 
 ## Getting Started
 
@@ -42,32 +73,6 @@ python main_pc.py
 - ✅ Support for colored point clouds (RGB)
 - ✅ Adaptive point sizing and camera controls
 - ✅ Multi-format support (XYZ, LAS, LAZ, PLY)
-
-## Installation
-
-### Requirements
-- Python 3.7+
-- OpenGL 3.3+ capable graphics card
-- 2GB+ RAM (4GB+ for large point clouds)
-
-### Setup
-
-**Platform-Specific Environment Setup:**
-
-```bash
-# For macOS
-conda env create -f env_yaml/mac_env.yml
-conda activate meshviewer
-
-# For Windows
-conda env create -f env_yaml/win_env.yml
-conda activate meshviewer
-```
-
-**Or install dependencies manually:**
-```bash
-pip install glfw PyOpenGL numpy pyrr pillow trimesh python-fcl colorama
-```
 
 ## Documentation
 

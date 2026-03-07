@@ -8,12 +8,12 @@ import numpy as np
 from pyrr import Matrix44
 import math
 
-from meshanalysis.utils.io import load_pc
-from meshanalysis.utils.fdialog import open_file_dialog as show_open_file_dialog
-from meshanalysis.buffer.point_buffer import PointBuffer
-from meshanalysis.analysis.pc import PointInfo
+from meshinfo.utils.io import load_pc
+from meshinfo.utils.fdialog import open_file_dialog as show_open_file_dialog
+from meshinfo.buffer.point_buffer import PointBuffer
+from meshinfo.analysis.pc import PointInfo
 
-from meshanalysis.constants import *
+from meshinfo.constants import *
 
 class PointViewer:
     def __init__(self):
