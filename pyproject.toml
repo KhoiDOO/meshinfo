@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meshviewer"
+version = "0.0.1"
+description = "3D mesh and point cloud visualization toolkit with analysis utilities"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Do Hoang Khoi" }
+]
+keywords = ["3d", "mesh", "point-cloud", "opengl", "visualization"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Scientific/Engineering :: Visualization"
+]
+dependencies = [
+  "colorama>=0.4.6",
+  "glfw>=2.10.0",
+  "numpy>=2.2.6",
+  "Pillow>=12.1.1",
+  "PyOpenGL>=3.1.10",
+  "pyrr>=0.10.3",
+  "python-fcl>=0.7.0.10",
+  "trimesh>=4.11.2"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["meshanalysis*"]
