@@ -1,6 +1,7 @@
 import trimesh
 import numpy as np
 import fcl
+import warnings
 from colorama import Fore, Style, init
 from . import format_value, format_bool
 
@@ -11,6 +12,8 @@ from ..constants import (
     FORMAT_PRECISION_FLOAT,
     FORMAT_PRECISION_COORD
 )
+
+from trimesh.triangles import mass_properties, MassProperties
 
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
@@ -123,8 +126,17 @@ def get_sphericity(volume, area) -> float:
     sphericity = (np.pi ** (1/3)) * ((6 * abs(volume)) ** (2/3)) / area
     return sphericity
 
-def get_center_mass(mesh: trimesh.Trimesh) -> np.ndarray:
-    return mesh.center_mass if mesh.volume > 0 else None
+def get_volume_center_mass_density(triangles: np.ndarray) -> np.ndarray:
+    triangles = np.asanyarray(triangles, dtype=np.float64)
+    
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+        _mass_properties: MassProperties = mass_properties(triangles, skip_inertia=True)
+
+    volume = _mass_properties.volume
+    center_mass = _mass_properties.center_mass if volume != 0 else None
+
+    return volume, center_mass
 
 
 class MeshInfo:
@@ -182,12 +194,13 @@ class MeshInfo:
             "is_intersecting": len(self.intersected_face_ids) > 0,
         }
 
+        volume, center_mass = get_volume_center_mass_density(mesh.triangles)
         self.analysis = {
             "area": mesh.area,
-            "volume": mesh.volume,
-            "sphericity": get_sphericity(mesh.volume, mesh.area),
+            "volume": volume,
+            "sphericity": get_sphericity(volume, mesh.area),
             "bounds": mesh.bounds,
-            "center_mass": get_center_mass(mesh),
+            "center_mass": center_mass,
             "centroid": mesh.centroid,
             "extents": mesh.extents,
         }
