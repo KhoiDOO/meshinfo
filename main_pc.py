@@ -8,16 +8,12 @@ import numpy as np
 from pyrr import Matrix44
 import math
 
-import subprocess
-import platform
-from PIL import Image
+from meshanalysis.utils.io import load_pc
+from meshanalysis.utils.fdialog import open_file_dialog as show_open_file_dialog
+from meshanalysis.buffer.point_buffer import PointBuffer
+from meshanalysis.analysis.pc import PointInfo
 
-from utils.io import load_pc
-from utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
-from buffer.point_buffer import PointBuffer
-from analysis.pc import PointInfo
-
-from constants import *
+from meshanalysis.constants import *
 
 class PointViewer:
     def __init__(self):
