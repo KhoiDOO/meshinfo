@@ -120,8 +120,11 @@ def get_num_dup_faces(mesh: trimesh.Trimesh) -> int:
 def get_sphericity(volume, area) -> float:
     if volume == 0 or area == 0:
         return 0.0
-    sphericity = (np.pi ** (1/3)) * ((6 * volume) ** (2/3)) / area
+    sphericity = (np.pi ** (1/3)) * ((6 * abs(volume)) ** (2/3)) / area
     return sphericity
+
+def get_center_mass(mesh: trimesh.Trimesh) -> np.ndarray:
+    return mesh.center_mass if mesh.volume > 0 else None
 
 
 class MeshInfo:
@@ -184,7 +187,7 @@ class MeshInfo:
             "volume": mesh.volume,
             "sphericity": get_sphericity(mesh.volume, mesh.area),
             "bounds": mesh.bounds,
-            "center_mass": mesh.center_mass,
+            "center_mass": get_center_mass(mesh),
             "centroid": mesh.centroid,
             "extents": mesh.extents,
         }
