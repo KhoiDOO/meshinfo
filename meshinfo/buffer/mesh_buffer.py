@@ -68,14 +68,22 @@ class MeshBuffer:
         self.nonmanifold_vertices_vbo = glGenBuffers(1)
         self.nonmanifold_vertices_count = 0
 
-    def update_from_mesh(self, mesh, mesh_info, normal_length, points, point_normals, color_scheme):
+    def update_from_mesh(
+        self, 
+        mesh: trimesh.Trimesh, 
+        mesh_info: MeshInfo, 
+        normal_length: float, 
+        points: np.ndarray, 
+        point_normals: np.ndarray, 
+        color_scheme: dict
+    ):
         self.mesh = mesh
         self.mesh_info = mesh_info
         self.intersected_face_ids = mesh_info.intersected_face_ids
         self.normal_length = normal_length
         self.points = points
         self.point_normals = point_normals
-        self.bounds = mesh_info.analysis["bounds"]
+        self.bounds = mesh.bounds
         self.bounds_center = (self.bounds[0] + self.bounds[1]) * 0.5
         self.bounds_size = self.bounds[1] - self.bounds[0]
         # Store original unscaled bounds for layout calculations
@@ -84,12 +92,12 @@ class MeshBuffer:
         self.original_bounds_size = np.copy(self.bounds_size)
         self.update_gpu_buffers(color_scheme)
 
-    def refresh_colors(self, color_scheme):
+    def refresh_colors(self, color_scheme: dict):
         if self.mesh is None:
             return
         self.update_gpu_buffers(color_scheme)
 
-    def update_gpu_buffers(self, color_scheme):
+    def update_gpu_buffers(self, color_scheme: dict):
         # Split faces into two groups
         all_indices = np.arange(len(self.mesh.faces))
         intersected_mask = np.array([i in self.intersected_face_ids for i in all_indices])
@@ -122,7 +130,7 @@ class MeshBuffer:
         # 6. Prepare Non-manifold Vertices
         self.nonmanifold_vertices_count = self.setup_nonmanifold_vertices_buffer(color_scheme)
 
-    def setup_buffer(self, vao, vbo, ebo, faces, color_scheme):
+    def setup_buffer(self, vao, vbo, ebo, faces, color_scheme: dict):
         if len(faces) == 0:
             return 0
 
@@ -148,7 +156,7 @@ class MeshBuffer:
 
         return len(indices)
 
-    def setup_point_cloud_buffer(self, color_scheme):
+    def setup_point_cloud_buffer(self, color_scheme: dict):
         points = self.points
         colors = np.full((points.shape[0], 3), color_scheme["point_cloud"], dtype=np.float32)
         data = np.hstack((points, colors)).astype(np.float32)
@@ -182,7 +190,7 @@ class MeshBuffer:
 
         return points.shape[0], line_verts.shape[0]
 
-    def setup_face_normals_buffer(self, color_scheme):
+    def setup_face_normals_buffer(self, color_scheme: dict):
         # Face centers and normals
         centers = self.mesh.triangles_center
         normals = self.mesh.face_normals
@@ -205,7 +213,7 @@ class MeshBuffer:
 
         return line_verts.shape[0]
 
-    def setup_vertex_normals_buffer(self, color_scheme):
+    def setup_vertex_normals_buffer(self, color_scheme: dict):
         verts = self.mesh.vertices
         normals = self.mesh.vertex_normals
 
@@ -227,7 +235,7 @@ class MeshBuffer:
 
         return line_verts.shape[0]
 
-    def setup_nonmanifold_edges_buffer(self, color_scheme):
+    def setup_nonmanifold_edges_buffer(self, color_scheme: dict):
         if len(self.mesh_info.nonmanifold_edges) == 0: return 0
 
         # Get vertex positions for each non-manifold edge
@@ -253,7 +261,7 @@ class MeshBuffer:
 
         return line_verts.shape[0]
 
-    def setup_nonmanifold_vertices_buffer(self, color_scheme):
+    def setup_nonmanifold_vertices_buffer(self, color_scheme: dict):
         if len(self.mesh_info.nonmanifold_vertices) == 0: return 0
 
         # Get vertex positions for non-manifold vertices
