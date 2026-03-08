@@ -8,6 +8,7 @@ from OpenGL.GL.shaders import compileProgram, compileShader
 import numpy as np
 from pyrr import Matrix44
 import math
+import trimesh
 
 from PIL import Image
 
@@ -15,6 +16,7 @@ from meshinfo.utils.io import load_mesh
 from meshinfo.utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
 from meshinfo.analysis.mesh import MeshInfo
 from meshinfo.buffer.mesh_buffer import MeshBuffer
+from meshinfo.utils.io import normalize_vertices
 
 from meshinfo.constants import *
 
@@ -195,8 +197,14 @@ class MeshViewer:
             check_nonmanifold_vertices=self.check_nonmanifold_vertices
         )
 
+        # Normalize vertices to fit in view (optional, can be commented out if not desired)
+        vertices = mesh.vertices
+        faces = mesh.faces
+        vertices = normalize_vertices(vertices)
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+
         # Calculate diagonal and normal length for visualization
-        bounds = mesh_info.analysis["bounds"]
+        bounds = mesh.bounds
         diag = np.linalg.norm(bounds[1] - bounds[0])
         normal_length = max(diag * NORMAL_LENGTH_FACTOR, NORMAL_LENGTH_MIN)
 
