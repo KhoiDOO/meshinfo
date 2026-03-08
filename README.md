@@ -50,6 +50,14 @@ python main_mesh.py
 # Press O to open a mesh file
 # See docs/MESH_VIEWER.md for full documentation
 ```
+To enable mesh intersection checking (which might crashs for large mesh):
+```bash
+python main_mesh.py --intersect
+```
+To enable nonmanifold vertices checking:
+```bash
+python main_mesh.py --manifold
+```
 
 ### Point Cloud Viewer
 ```bash

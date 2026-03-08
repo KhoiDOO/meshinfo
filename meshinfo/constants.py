@@ -176,6 +176,8 @@ DIALOG_TITLE_SELECT_POINT_CLOUD = "Select Point Cloud File"
 COPLANAR_TOLERANCE = 1e-8  # Tolerance for coplanar vertex detection
 NORMALIZE_BOUND = 0.95  # Default bound for vertex normalization
 MANIFOLD_EDGE_COUNT = 2  # Expected edge count for manifold meshes
+CHECK_INTERSECTION_SUGGESTION_PROMPT = None # "Turn on intersection checking for more detailed analysis (may increase processing time)."
+CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT = None # "Turn on non-manifold vertex checking for more detailed analysis (may increase processing time)."
 
 # Mesh Info Formatting Constants
 FORMAT_LABEL_WIDTH = 40  # Width for label formatting in mesh info output

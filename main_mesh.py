@@ -1,4 +1,5 @@
 import os
+import argparse
 
 import glfw
 from OpenGL.GL import *
@@ -18,8 +19,10 @@ from meshinfo.buffer.mesh_buffer import MeshBuffer
 from meshinfo.constants import *
 
 class MeshViewer:
-    def __init__(self):
+    def __init__(self, check_intersection, check_nonmanifold_vertices):
         self.mode = DEFAULT_MODE
+        self.check_intersection = check_intersection
+        self.check_nonmanifold_vertices = check_nonmanifold_vertices
         self.mesh_buffers: list[MeshBuffer] = []
         
         self.show_intersected = DEFAULT_SHOW_INTERSECTED
@@ -185,7 +188,12 @@ class MeshViewer:
             return
         # mesh analysis and info extraction
         name = os.path.basename(path).split('.')[0]
-        mesh_info = MeshInfo(mesh, name=name)
+        mesh_info = MeshInfo(
+            mesh, 
+            name=name, 
+            check_intersection=self.check_intersection, 
+            check_nonmanifold_vertices=self.check_nonmanifold_vertices
+        )
 
         # Calculate diagonal and normal length for visualization
         bounds = mesh_info.analysis["bounds"]
@@ -527,5 +535,13 @@ class MeshViewer:
         glfw.terminate()
 
 if __name__ == "__main__":
-    app = MeshViewer()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--intersect", action="store_true")
+    parser.add_argument("--nonmanifold", action="store_true")
+    args = parser.parse_args()
+
+    app = MeshViewer(
+        check_intersection=args.intersect,
+        check_nonmanifold_vertices=args.nonmanifold
+    )
     app.run()

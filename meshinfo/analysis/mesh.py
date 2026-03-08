@@ -9,7 +9,8 @@ from ..constants import (
     COPLANAR_TOLERANCE,
     MANIFOLD_EDGE_COUNT,
     FORMAT_LABEL_WIDTH,
-    FORMAT_PRECISION_FLOAT,
+    CHECK_INTERSECTION_SUGGESTION_PROMPT,
+    CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT,
     FORMAT_PRECISION_COORD
 )
 
@@ -18,10 +19,8 @@ from trimesh.triangles import mass_properties, MassProperties
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
 
-def is_manifold(mesh: trimesh.Trimesh) -> bool:
-    edges_sorted = np.sort(mesh.edges, axis=1)
-    unique_edges, counts = np.unique(edges_sorted, axis=0, return_counts=True)
-    is_manifold = np.all(counts == MANIFOLD_EDGE_COUNT).item()
+def is_manifold(edge_counts) -> bool:
+    is_manifold = np.all(edge_counts == MANIFOLD_EDGE_COUNT).item()
     return is_manifold
 
 def get_intersected_tria_ids(mesh: trimesh.Trimesh):
@@ -60,21 +59,21 @@ def get_intersected_tria_ids(mesh: trimesh.Trimesh):
 
     return list(intersected_ids)
 
-
-def get_nonmanifold_vertices(mesh: trimesh.Trimesh) -> np.ndarray:
+def get_nonmanifold_vertices(vertices, faces, edges_unique, edges_counts, face_adjacency) -> np.ndarray:
     nonmanifold_vertices = set()
     
     # First, collect vertices on non-manifold edges
-    edges_unique, edges_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
-    nonmanifold_edge_mask = edges_counts > 2  # Edges shared by more than 2 faces
+    nonmanifold_edge_mask = edges_counts != 2  # Edges shared by more or less than 2 faces
     if np.any(nonmanifold_edge_mask):
         nonmanifold_edge_vertices = edges_unique[nonmanifold_edge_mask].flatten()
         nonmanifold_vertices.update(nonmanifold_edge_vertices)
+    else:
+        return np.array([], dtype=np.int32)
     
     # Preprocess face adjacency into a more efficient lookup structure
     # Build a dictionary: face_id -> list of adjacent face_ids
     face_adjacency_dict: dict[int, list[int]] = {}
-    for face_pair in mesh.face_adjacency:
+    for face_pair in face_adjacency:
         f1, f2 = face_pair[0], face_pair[1]
         if f1 not in face_adjacency_dict:
             face_adjacency_dict[f1] = []
@@ -84,9 +83,9 @@ def get_nonmanifold_vertices(mesh: trimesh.Trimesh) -> np.ndarray:
         face_adjacency_dict[f2].append(f1)
     
     # For each vertex, check if its adjacent faces form a single connected component
-    for vertex_idx in range(len(mesh.vertices)):
+    for vertex_idx in range(len(vertices)):
         # Get all faces adjacent to this vertex
-        adjacent_faces = np.where(np.any(mesh.faces == vertex_idx, axis=1))[0]
+        adjacent_faces = np.where(np.any(faces == vertex_idx, axis=1))[0]
         
         if len(adjacent_faces) < 2:
             continue
@@ -140,19 +139,40 @@ def get_volume_center_mass_density(triangles: np.ndarray) -> np.ndarray:
 
 
 class MeshInfo:
-    def __init__(self, mesh: trimesh.Trimesh, name: str = "Mesh"):
+    def __init__(
+        self, 
+        mesh: trimesh.Trimesh, 
+        name: str = "Mesh",
+        check_intersection: bool = False,
+        check_nonmanifold_vertices: bool = False
+    ):
         self.mesh = mesh
         self.name = name
-        self.intersected_face_ids = get_intersected_tria_ids(mesh)
+        
+        # Connected Components
         self.non_watertight_components = mesh.split(only_watertight=False)
         self.watertight_components = mesh.split(only_watertight=True)
         self.euler = len(mesh.vertices) - len(mesh.edges_unique) + len(mesh.faces)
         self.genus = 1 - self.euler / 2
         self.num_dup_faces = get_num_dup_faces(mesh)
 
+        self.wt_css_f_num = [len(c.faces) for c in self.watertight_components]
+        self.nwt_css_f_num = [len(c.faces) for c in self.non_watertight_components]
+        self.wt_css_v_num = [len(c.vertices) for c in self.watertight_components]
+        self.nwt_css_v_num = [len(c.vertices) for c in self.non_watertight_components]
+
+        # Vertex Properties
         self.vertex_defects: np.ndarray = mesh.vertex_defects
         self.vertex_degree: np.ndarray = mesh.vertex_degree
 
+        self.checked_nonmanifold_vertices = check_nonmanifold_vertices
+        self.nonmanifold_vertices = get_nonmanifold_vertices(
+            mesh.vertices, mesh.faces, self.edges_unique, self.edges_counts, mesh.face_adjacency
+        ) if check_nonmanifold_vertices else []
+        self.num_nonmanifold_vertices = len(self.nonmanifold_vertices) \
+            if check_nonmanifold_vertices else CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT
+
+        # Edge Properties
         self.edges_unique: np.ndarray
         self.edges_counts: np.ndarray
         self.edges_unique, self.edges_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
@@ -163,10 +183,19 @@ class MeshInfo:
         self.nonmanifold_edge_mask = self.edges_counts > 2  # Edges shared by more than 2 faces
         self.nonmanifold_edges = self.edges_unique[self.nonmanifold_edge_mask]
         self.num_nonmanifold_edges = np.sum(self.nonmanifold_edge_mask).item()
-        
-        self.nonmanifold_vertices = get_nonmanifold_vertices(mesh)
-        self.num_nonmanifold_vertices = len(self.nonmanifold_vertices)
 
+        # Intersection and Manifold Checks
+        self.checked_intersection = check_intersection
+        self.intersected_face_ids = get_intersected_tria_ids(mesh) if check_intersection else []
+        self.num_intersected_faces = len(self.intersected_face_ids) \
+            if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
+        self.is_intersecting = self.num_intersected_faces > 0 \
+            if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
+        self.is_manifold_ignore_intersection = is_manifold(self.edges_counts)
+        self.is_manifold = self.is_manifold_ignore_intersection and not self.is_intersecting \
+            if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
+        
+        # Face Properties
         self.nondegenerate_faces_mask = mesh.nondegenerate_faces()
         self.num_degenerate_faces = np.sum(~self.nondegenerate_faces_mask).item()
         self.num_nondegenerate_faces = np.sum(self.nondegenerate_faces_mask).item()
@@ -180,9 +209,6 @@ class MeshInfo:
             "#edges": len(mesh.edges_unique),
             "euler": self.euler,
             "genus": self.genus,
-            "#ccs": mesh.body_count,
-            "#ccs[split][wt=True]": len(self.watertight_components),
-            "#ccs[split][non_wt=True]": len(self.non_watertight_components),
         }
 
         self.properties = {
@@ -190,10 +216,10 @@ class MeshInfo:
             "is_empty": mesh.is_empty,
             "is_winding_consistent": mesh.is_winding_consistent,
             "is_convex": mesh.is_convex,
-            "is_manifold[ignore intersection]": is_manifold(mesh),
-            "is_manifold": is_manifold(mesh) and len(self.intersected_face_ids) == 0,
+            "is_manifold[ignore intersection]": self.is_manifold_ignore_intersection,
+            "is_manifold": self.is_manifold,
             "mutable": mesh.mutable,
-            "is_intersecting": len(self.intersected_face_ids) > 0,
+            "is_intersecting": self.is_intersecting,
         }
 
         self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
@@ -214,13 +240,13 @@ class MeshInfo:
             "#coplanar_vertices": np.sum(np.abs(self.vertex_defects) < COPLANAR_TOLERANCE).item(),
             "#convex_vertices": np.sum(self.vertex_defects > 0).item(),
             "#concave_vertices": np.sum(self.vertex_defects < 0).item(),
-            "min_vertex_degree": int(self.vertex_degree.min()),
-            "max_vertex_degree": int(self.vertex_degree.max()),
+            "min_v_degree": int(self.vertex_degree.min()),
+            "max_v_degree": int(self.vertex_degree.max()),
         }
 
         self.edges_info = {
-            "#internal_edges": np.sum(self.edges_counts == 2).item(),
-            "#boundary_edges": np.sum(self.edges_counts == 1).item(),
+            "#internal_edges": np.sum(self.edges_counts == 2),
+            "#boundary_edges": np.sum(self.edges_counts == 1),
             "#nonmanifold_edges": self.num_nonmanifold_edges,
             "#nonmanifold_vertices": self.num_nonmanifold_vertices,
             "min_connectivity": int(self.vertex_connectivity.min()),
@@ -232,18 +258,32 @@ class MeshInfo:
         self.edges_info["aspect_ratio[ar][mal/mel]"] = self.edges_info["max_edge_length[mal]"] / self.edges_info["min_edge_length[mel]"] if self.edges_info["min_edge_length[mel]"] > 0 else float('inf')
 
         self.faces_info = {
-            "#intersected_faces": len(self.intersected_face_ids),
+            "#intersected_faces": self.num_intersected_faces,
             "#degenerate_faces": self.num_degenerate_faces,
             "#non_degenerate_faces": self.num_nondegenerate_faces,
-            "min_face_angle[rad]": float(self.face_angles.min()),
-            "max_face_angle[rad]": float(self.face_angles.max()),
-            "min_face_angle[deg]": float(np.degrees(self.face_angles.min())),
-            "max_face_angle[deg]": float(np.degrees(self.face_angles.max())),
-            "min_face_area": float(self.face_areas.min()),
-            "max_face_area": float(self.face_areas.max()),
+            "min_f_angle[rad]": float(self.face_angles.min()),
+            "max_f_angle[rad]": float(self.face_angles.max()),
+            "min_f_angle[deg]": float(np.degrees(self.face_angles.min())),
+            "max_f_angle[deg]": float(np.degrees(self.face_angles.max())),
+            "min_f_area": float(self.face_areas.min()),
+            "max_f_area": float(self.face_areas.max()),
             "min_dihedral_angle[deg]": float(np.degrees(np.min(self.face_adjacency_angles))) if len(self.face_adjacency_angles) > 0 else None,
             "max_dihedral_angle[deg]": float(np.degrees(np.max(self.face_adjacency_angles))) if len(self.face_adjacency_angles) > 0 else None,
             "num_dup_faces": self.num_dup_faces,
+        }
+
+        self.ccs_info = {
+            "#ccs": mesh.body_count,
+            "#ccs[split][wt=True]": len(self.watertight_components),
+            "#ccs[split][wt=False]": len(self.non_watertight_components),
+            "ccs_max_f_wt" : max(self.wt_css_f_num) if len(self.watertight_components) > 0 else self.stats['#faces'],
+            "ccs_max_f_non_wt" : max(self.nwt_css_f_num) if len(self.non_watertight_components) > 0 else self.stats['#faces'],
+            "ccs_min_f_wt" : min(self.wt_css_f_num) if len(self.watertight_components) > 0 else self.stats['#faces'],
+            "ccs_min_f_non_wt" : min(self.nwt_css_f_num) if len(self.non_watertight_components) > 0 else self.stats['#faces'],
+            "css_max_v_wt" : max(self.wt_css_v_num) if len(self.watertight_components) > 0 else self.stats['#vertices'],
+            "css_max_v_non_wt" : max(self.nwt_css_v_num) if len(self.non_watertight_components) > 0 else self.stats['#vertices'],
+            "css_min_v_wt" : min(self.wt_css_v_num) if len(self.watertight_components) > 0 else self.stats['#vertices'],
+            "css_min_v_non_wt" : min(self.nwt_css_v_num) if len(self.non_watertight_components) > 0 else self.stats['#vertices'],
         }
     
     def __str__(self):
@@ -292,8 +332,8 @@ class MeshInfo:
         info_str += f"{format_value(self.vertices_info['#concave_vertices'])}\n"
         
         info_str += f"  {Fore.CYAN}{'min / max vertex_degree':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
-        info_str += f"{format_value(self.vertices_info['min_vertex_degree'])} / "
-        info_str += f"{format_value(self.vertices_info['max_vertex_degree'])}\n"
+        info_str += f"{format_value(self.vertices_info['min_v_degree'])} / "
+        info_str += f"{format_value(self.vertices_info['max_v_degree'])}\n"
         
         # Edges Info - group min/max pairs
         info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Edges Info:{Style.RESET_ALL}\n"
@@ -323,23 +363,32 @@ class MeshInfo:
         info_str += f"{format_value(self.faces_info['#non_degenerate_faces'])}\n"
         
         info_str += f"  {Fore.CYAN}{'min / max face_angle[rad]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
-        info_str += f"{format_value(self.faces_info['min_face_angle[rad]'])} / "
-        info_str += f"{format_value(self.faces_info['max_face_angle[rad]'])}\n"
+        info_str += f"{format_value(self.faces_info['min_f_angle[rad]'])} / "
+        info_str += f"{format_value(self.faces_info['max_f_angle[rad]'])}\n"
         
         info_str += f"  {Fore.CYAN}{'min / max face_angle[deg]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
-        info_str += f"{format_value(self.faces_info['min_face_angle[deg]'])} / "
-        info_str += f"{format_value(self.faces_info['max_face_angle[deg]'])}\n"
+        info_str += f"{format_value(self.faces_info['min_f_angle[deg]'])} / "
+        info_str += f"{format_value(self.faces_info['max_f_angle[deg]'])}\n"
         
         info_str += f"  {Fore.CYAN}{'min / max face_area':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
-        info_str += f"{format_value(self.faces_info['min_face_area'])} / "
-        info_str += f"{format_value(self.faces_info['max_face_area'])}\n"
+        info_str += f"{format_value(self.faces_info['min_f_area'])} / "
+        info_str += f"{format_value(self.faces_info['max_f_area'])}\n"
         
         info_str += f"  {Fore.CYAN}{'min / max dihedral_angle[deg]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
         info_str += f"{format_value(self.faces_info['min_dihedral_angle[deg]'])} / "
         info_str += f"{format_value(self.faces_info['max_dihedral_angle[deg]'])}\n"
 
         info_str += f"  {Fore.CYAN}{'num_dup_faces':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.faces_info['num_dup_faces'])}\n"
-        
+
+        # Connected Components Info
+        info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Connected Components Info:{Style.RESET_ALL}\n"
+        info_str += f"  {Fore.CYAN}{'#ccs':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['#ccs'])}\n"
+        info_str += f"  {Fore.CYAN}{'#ccs[split]: [wt=True]/[wt=False]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['#ccs[split][wt=True]'])} / {format_value(self.ccs_info['#ccs[split][wt=False]'])}\n"
+        info_str += f"  {Fore.CYAN}{'ccs_max_f_wt / ccs_min_f_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['ccs_max_f_wt'])} / {format_value(self.ccs_info['ccs_min_f_wt'])}\n"
+        info_str += f"  {Fore.CYAN}{'ccs_max_f_non_wt / ccs_min_f_non_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['ccs_max_f_non_wt'])} / {format_value(self.ccs_info['ccs_min_f_non_wt'])}\n"
+        info_str += f"  {Fore.CYAN}{'css_max_v_wt / css_min_v_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['css_max_v_wt'])} / {format_value(self.ccs_info['css_min_v_wt'])}\n"
+        info_str += f"  {Fore.CYAN}{'css_max_v_non_wt / css_min_v_non_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['css_max_v_non_wt'])} / {format_value(self.ccs_info['css_min_v_non_wt'])}\n"
+
         info_str += f"\n{Fore.CYAN}{Style.BRIGHT}╚═══════════════════════╝{Style.RESET_ALL}"
         return info_str
 
@@ -352,6 +401,7 @@ class MeshInfo:
             **self.vertices_info,
             **self.edges_info,
             **self.faces_info,
+            **self.ccs_info
         }
 
         if np2list:
