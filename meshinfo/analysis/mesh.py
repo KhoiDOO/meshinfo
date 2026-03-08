@@ -146,7 +146,8 @@ class MeshInfo:
         self.intersected_face_ids = get_intersected_tria_ids(mesh)
         self.non_watertight_components = mesh.split(only_watertight=False)
         self.watertight_components = mesh.split(only_watertight=True)
-        self.genus = 1 - (len(mesh.vertices) - len(mesh.edges_unique) + len(mesh.faces)) / 2
+        self.euler = len(mesh.vertices) - len(mesh.edges_unique) + len(mesh.faces)
+        self.genus = 1 - self.euler / 2
         self.num_dup_faces = get_num_dup_faces(mesh)
 
         self.vertex_defects: np.ndarray = mesh.vertex_defects
@@ -177,10 +178,11 @@ class MeshInfo:
             "#vertices": len(mesh.vertices),
             "#faces": len(mesh.faces),
             "#edges": len(mesh.edges_unique),
+            "euler": self.euler,
             "genus": self.genus,
-            "#components": mesh.body_count,
-            "#components[split][watertight=True]": len(self.watertight_components),
-            "#components[split][non_watertight=True]": len(self.non_watertight_components),
+            "#ccs": mesh.body_count,
+            "#ccs[split][wt=True]": len(self.watertight_components),
+            "#ccs[split][non_wt=True]": len(self.non_watertight_components),
         }
 
         self.properties = {
@@ -194,15 +196,18 @@ class MeshInfo:
             "is_intersecting": len(self.intersected_face_ids) > 0,
         }
 
-        volume, center_mass = get_volume_center_mass_density(mesh.triangles)
+        self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
+        self.area = mesh.area
+        self.bounds = mesh.bounds
+        self.extents = np.ptp(self.bounds, axis=0)
         self.analysis = {
-            "area": mesh.area,
-            "volume": volume,
-            "sphericity": get_sphericity(volume, mesh.area),
-            "bounds": mesh.bounds,
-            "center_mass": center_mass,
+            "area": self.area,
+            "volume": self.volume,
+            "sphericity": get_sphericity(self.volume, self.area),
+            "bounds": self.bounds,
+            "center_mass": self.center_mass,
             "centroid": mesh.centroid,
-            "extents": mesh.extents,
+            "extents": self.extents,
         }
 
         self.vertices_info = {
