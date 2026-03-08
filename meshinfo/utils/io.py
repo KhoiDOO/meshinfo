@@ -21,7 +21,7 @@ def load_mesh(file_path):
     vertices = mesh.vertices
     faces = mesh.faces
 
-    vertices = normalize_vertices(vertices)
+    # vertices = normalize_vertices(vertices)
 
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
