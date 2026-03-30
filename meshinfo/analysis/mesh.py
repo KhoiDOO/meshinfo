@@ -23,7 +23,7 @@ def is_manifold(edge_counts) -> bool:
     is_manifold = np.all(edge_counts == MANIFOLD_EDGE_COUNT).item()
     return is_manifold
 
-def get_intersected_tria_ids(mesh: trimesh.Trimesh):
+def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = None) -> list[int]:
     # 1. Build the FCL Model
     model = fcl.BVHModel()
     model.beginModel(len(mesh.vertices), len(mesh.faces))
@@ -33,7 +33,11 @@ def get_intersected_tria_ids(mesh: trimesh.Trimesh):
     mesh_obj = fcl.CollisionObject(model, fcl.Transform())
 
     # 2. Collision Request
-    request = fcl.CollisionRequest(enable_contact=True, num_max_contacts=len(mesh.faces) ** 2)
+    max_num_contacts = max_num_contacts if max_num_contacts is not None else len(mesh.faces) ** 2
+    request = fcl.CollisionRequest(
+        enable_contact=True, 
+        num_max_contacts=max_num_contacts
+    )
     result = fcl.CollisionResult()
     fcl.collide(mesh_obj, mesh_obj, request, result)
 
@@ -144,7 +148,8 @@ class MeshInfo:
         mesh: trimesh.Trimesh, 
         name: str = "Mesh",
         check_intersection: bool = False,
-        check_nonmanifold_vertices: bool = False
+        check_nonmanifold_vertices: bool = False,
+        max_num_contacts: int = None
     ):
         self.mesh = mesh
         self.name = name
@@ -152,7 +157,7 @@ class MeshInfo:
         # Connected Components
         self.non_watertight_components = mesh.split(only_watertight=False)
         self.watertight_components = mesh.split(only_watertight=True)
-        self.euler = len(mesh.vertices) - len(mesh.edges_unique) + len(mesh.faces)
+        self.euler = mesh.euler_number
         self.genus = 1 - self.euler / 2
         self.num_dup_faces = get_num_dup_faces(mesh)
 
@@ -186,7 +191,8 @@ class MeshInfo:
 
         # Intersection and Manifold Checks
         self.checked_intersection = check_intersection
-        self.intersected_face_ids = get_intersected_tria_ids(mesh) if check_intersection else []
+        self.intersected_face_ids = get_intersected_tria_ids(mesh, max_num_contacts) \
+            if check_intersection else []
         self.num_intersected_faces = len(self.intersected_face_ids) \
             if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
         self.is_intersecting = self.num_intersected_faces > 0 \
@@ -220,6 +226,7 @@ class MeshInfo:
             "is_manifold": self.is_manifold,
             "mutable": mesh.mutable,
             "is_intersecting": self.is_intersecting,
+            "symmetry": mesh.symmetry
         }
 
         self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
@@ -310,6 +317,7 @@ class MeshInfo:
         info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}empty:{Style.RESET_ALL} {format_bool(self.properties['is_empty'])}  "
         info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}intersecting:{Style.RESET_ALL} {format_bool(self.properties['is_intersecting'])}  "
         info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}mutable:{Style.RESET_ALL} {format_bool(self.properties['mutable'])}\n"
+        info_str += f"  {Fore.CYAN}symmetry:{Style.RESET_ALL} {format_value(self.properties['symmetry'])}\n"
         
         info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Analysis:{Style.RESET_ALL}\n"
         for key, value in self.analysis.items():
