@@ -441,14 +441,6 @@ class MeshInfo:
     def to_dict(self, np2list=True, nested=False) -> dict:
 
         info_dict = {
-            **self.stats,
-            **self.properties,
-            **self.analysis,
-            **self.vertices_info,
-            **self.edges_info,
-            **self.faces_info,
-            **self.ccs_info
-        } if nested else {
             "stats": self.stats,
             "properties": self.properties,
             "analysis": self.analysis,
@@ -456,6 +448,14 @@ class MeshInfo:
             "edges_info": self.edges_info,
             "faces_info": self.faces_info,
             "ccs_info": self.ccs_info
+        } if nested else {
+            **self.stats,
+            **self.properties,
+            **self.analysis,
+            **self.vertices_info,
+            **self.edges_info,
+            **self.faces_info,
+            **self.ccs_info
         }
 
         if np2list:
