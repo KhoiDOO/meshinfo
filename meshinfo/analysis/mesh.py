@@ -1,3 +1,5 @@
+from tabnanny import check
+
 import trimesh
 import numpy as np
 import fcl
@@ -9,8 +11,11 @@ from ..constants import (
     COPLANAR_TOLERANCE,
     MANIFOLD_EDGE_COUNT,
     FORMAT_LABEL_WIDTH,
+    CHECK_COMPONENTS_SUGGESTION_PROMPT,
     CHECK_INTERSECTION_SUGGESTION_PROMPT,
     CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT,
+    CHECK_GEOMETRY_SUGGESTION_PROMPT,
+    CHECK_TOPOLOGY_SUGGESTION_PROMPT,
     FORMAT_PRECISION_COORD
 )
 
@@ -23,7 +28,7 @@ def is_manifold(edge_counts) -> bool:
     is_manifold = np.all(edge_counts == MANIFOLD_EDGE_COUNT).item()
     return is_manifold
 
-def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = None) -> list[int]:
+def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = 1000) -> list[int]:
     # 1. Build the FCL Model
     model = fcl.BVHModel()
     model.beginModel(len(mesh.vertices), len(mesh.faces))
@@ -147,24 +152,39 @@ class MeshInfo:
         self, 
         mesh: trimesh.Trimesh, 
         name: str = "Mesh",
+        check_components: bool = False,
         check_intersection: bool = False,
         check_nonmanifold_vertices: bool = False,
-        max_num_contacts: int = None
+        check_geometry: bool = False,
+        check_topology: bool = False,
+        max_num_contacts: int = 1000
     ):
         self.mesh = mesh
         self.name = name
-        
-        # Connected Components
-        self.non_watertight_components = mesh.split(only_watertight=False)
-        self.watertight_components = mesh.split(only_watertight=True)
+
+        # General Properties
         self.euler = mesh.euler_number
         self.genus = 1 - self.euler / 2
-        self.num_dup_faces = get_num_dup_faces(mesh)
 
-        self.wt_css_f_num = [len(c.faces) for c in self.watertight_components]
-        self.nwt_css_f_num = [len(c.faces) for c in self.non_watertight_components]
-        self.wt_css_v_num = [len(c.vertices) for c in self.watertight_components]
-        self.nwt_css_v_num = [len(c.vertices) for c in self.non_watertight_components]
+        # Geometric Properties
+        self.check_geometry = check_geometry
+        if check_geometry:
+            self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
+            self.area = mesh.area
+            self.bounds = mesh.bounds
+            self.extents = np.ptp(self.bounds, axis=0)
+        
+        # Connected Components
+        self.checked_components = check_components
+        self.check_topology = check_topology
+        if self.checked_components:
+            self.body_count = mesh.body_count if check_components else CHECK_COMPONENTS_SUGGESTION_PROMPT
+            self.non_watertight_components = mesh.split(only_watertight=False) if check_components else []
+            self.watertight_components = mesh.split(only_watertight=True) if check_components else []
+            self.wt_css_f_num = [len(c.faces) for c in self.watertight_components]
+            self.nwt_css_f_num = [len(c.faces) for c in self.non_watertight_components]
+            self.wt_css_v_num = [len(c.vertices) for c in self.watertight_components]
+            self.nwt_css_v_num = [len(c.vertices) for c in self.non_watertight_components]
 
         # Vertex Properties
         self.vertex_defects: np.ndarray = mesh.vertex_defects
@@ -208,6 +228,7 @@ class MeshInfo:
         self.face_angles: np.ndarray = mesh.face_angles
         self.face_areas: np.ndarray = mesh.area_faces
         self.face_adjacency_angles: np.ndarray = mesh.face_adjacency_angles
+        self.num_dup_faces = get_num_dup_faces(mesh)
         
         self.stats = {
             "#vertices": len(mesh.vertices),
@@ -227,12 +248,10 @@ class MeshInfo:
             "mutable": mesh.mutable,
             "is_intersecting": self.is_intersecting,
             "symmetry": mesh.symmetry
+        } if check_topology else {
+            "INFO": CHECK_TOPOLOGY_SUGGESTION_PROMPT
         }
 
-        self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
-        self.area = mesh.area
-        self.bounds = mesh.bounds
-        self.extents = np.ptp(self.bounds, axis=0)
         self.analysis = {
             "area": self.area,
             "volume": self.volume,
@@ -241,6 +260,8 @@ class MeshInfo:
             "center_mass": self.center_mass,
             "centroid": mesh.centroid,
             "extents": self.extents,
+        } if check_geometry else {
+            "INFO": CHECK_GEOMETRY_SUGGESTION_PROMPT
         }
 
         self.vertices_info = {
@@ -280,7 +301,7 @@ class MeshInfo:
         }
 
         self.ccs_info = {
-            "#ccs": mesh.body_count,
+            "#ccs": self.body_count,
             "#ccs[split][wt=True]": len(self.watertight_components),
             "#ccs[split][wt=False]": len(self.non_watertight_components),
             "ccs_max_f_wt" : max(self.wt_css_f_num) if len(self.watertight_components) > 0 else self.stats['#faces'],
@@ -291,6 +312,8 @@ class MeshInfo:
             "css_max_v_non_wt" : max(self.nwt_css_v_num) if len(self.non_watertight_components) > 0 else self.stats['#vertices'],
             "css_min_v_wt" : min(self.wt_css_v_num) if len(self.watertight_components) > 0 else self.stats['#vertices'],
             "css_min_v_non_wt" : min(self.nwt_css_v_num) if len(self.non_watertight_components) > 0 else self.stats['#vertices'],
+        } if self.checked_components else {
+            "INFO": CHECK_COMPONENTS_SUGGESTION_PROMPT
         }
     
     def __str__(self):
@@ -307,31 +330,37 @@ class MeshInfo:
                 info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {formatted_value}\n"
         
         info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Properties:{Style.RESET_ALL}\n"
-        # Row 1: Topological properties
-        info_str += f"  {Fore.CYAN}watertight:{Style.RESET_ALL} {format_bool(self.properties['is_watertight'])}  "
-        info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}manifold (ignore intersection):{Style.RESET_ALL} {format_bool(self.properties['is_manifold[ignore intersection]'])}  {Fore.CYAN}manifold:{Style.RESET_ALL} {format_bool(self.properties['is_manifold'])}  "
-        info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}winding_consistent:{Style.RESET_ALL} {format_bool(self.properties['is_winding_consistent'])}\n"
-        
-        # Row 2: Geometric and state properties
-        info_str += f"  {Fore.CYAN}convex:{Style.RESET_ALL} {format_bool(self.properties['is_convex'])}  "
-        info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}empty:{Style.RESET_ALL} {format_bool(self.properties['is_empty'])}  "
-        info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}intersecting:{Style.RESET_ALL} {format_bool(self.properties['is_intersecting'])}  "
-        info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}mutable:{Style.RESET_ALL} {format_bool(self.properties['mutable'])}\n"
-        info_str += f"  {Fore.CYAN}symmetry:{Style.RESET_ALL} {format_value(self.properties['symmetry'])}\n"
+        if self.check_topology:
+            # Row 1: Topological properties
+            info_str += f"  {Fore.CYAN}watertight:{Style.RESET_ALL} {format_bool(self.properties['is_watertight'])}  "
+            info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}manifold (ignore intersection):{Style.RESET_ALL} {format_bool(self.properties['is_manifold[ignore intersection]'])}  {Fore.CYAN}manifold:{Style.RESET_ALL} {format_bool(self.properties['is_manifold'])}  "
+            info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}winding_consistent:{Style.RESET_ALL} {format_bool(self.properties['is_winding_consistent'])}\n"
+            
+            # Row 2: Geometric and state properties
+            info_str += f"  {Fore.CYAN}convex:{Style.RESET_ALL} {format_bool(self.properties['is_convex'])}  "
+            info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}empty:{Style.RESET_ALL} {format_bool(self.properties['is_empty'])}  "
+            info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}intersecting:{Style.RESET_ALL} {format_bool(self.properties['is_intersecting'])}  "
+            info_str += f"{Fore.WHITE}|{Style.RESET_ALL} {Fore.CYAN}mutable:{Style.RESET_ALL} {format_bool(self.properties['mutable'])}\n"
+            info_str += f"  {Fore.CYAN}symmetry:{Style.RESET_ALL} {format_value(self.properties['symmetry'])}\n"
+        else:
+            info_str += f"  {Fore.CYAN}{'INFO':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {CHECK_TOPOLOGY_SUGGESTION_PROMPT}\n"
         
         info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Analysis:{Style.RESET_ALL}\n"
-        for key, value in self.analysis.items():
-            if key == "bounds":
-                key = "bounds[unnormalized]"
-                value_str = f"{Fore.YELLOW}[[{value[0][0]:.{FORMAT_PRECISION_COORD}f}, {value[0][1]:.{FORMAT_PRECISION_COORD}f}, {value[0][2]:.{FORMAT_PRECISION_COORD}f}], "
-                value_str += f"[{value[1][0]:.{FORMAT_PRECISION_COORD}f}, {value[1][1]:.{FORMAT_PRECISION_COORD}f}, {value[1][2]:.{FORMAT_PRECISION_COORD}f}]]{Style.RESET_ALL}"
-                info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {value_str}\n"
-            elif key == "extents":
-                value_str = f"{Fore.YELLOW}[l = {value[0]:.{FORMAT_PRECISION_COORD}f}, w = {value[1]:.{FORMAT_PRECISION_COORD}f}, h = {value[2]:.{FORMAT_PRECISION_COORD}f}]{Style.RESET_ALL}"
-                info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {value_str}\n"
-            else:
-                formatted_value = format_value(value)
-                info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {formatted_value}\n"
+        if self.check_geometry:
+            for key, value in self.analysis.items():
+                if key == "bounds":
+                    key = "bounds[unnormalized]"
+                    value_str = f"{Fore.YELLOW}[[{value[0][0]:.{FORMAT_PRECISION_COORD}f}, {value[0][1]:.{FORMAT_PRECISION_COORD}f}, {value[0][2]:.{FORMAT_PRECISION_COORD}f}], "
+                    value_str += f"[{value[1][0]:.{FORMAT_PRECISION_COORD}f}, {value[1][1]:.{FORMAT_PRECISION_COORD}f}, {value[1][2]:.{FORMAT_PRECISION_COORD}f}]]{Style.RESET_ALL}"
+                    info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {value_str}\n"
+                elif key == "extents":
+                    value_str = f"{Fore.YELLOW}[l = {value[0]:.{FORMAT_PRECISION_COORD}f}, w = {value[1]:.{FORMAT_PRECISION_COORD}f}, h = {value[2]:.{FORMAT_PRECISION_COORD}f}]{Style.RESET_ALL}"
+                    info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {value_str}\n"
+                else:
+                    formatted_value = format_value(value)
+                    info_str += f"  {Fore.CYAN}{key:.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {formatted_value}\n"
+        else:
+            info_str += f"  {Fore.CYAN}{'INFO':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {CHECK_GEOMETRY_SUGGESTION_PROMPT}\n"
         
         # Vertices Info - group related items
         info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Vertices Info:{Style.RESET_ALL}\n"
@@ -390,13 +419,17 @@ class MeshInfo:
         info_str += f"  {Fore.CYAN}{'num_dup_faces':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.faces_info['num_dup_faces'])}\n"
 
         # Connected Components Info
-        info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Connected Components Info:{Style.RESET_ALL}\n"
-        info_str += f"  {Fore.CYAN}{'#ccs':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['#ccs'])}\n"
-        info_str += f"  {Fore.CYAN}{'#ccs[split]: [wt=True]/[wt=False]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['#ccs[split][wt=True]'])} / {format_value(self.ccs_info['#ccs[split][wt=False]'])}\n"
-        info_str += f"  {Fore.CYAN}{'ccs_max_f_wt / ccs_min_f_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['ccs_max_f_wt'])} / {format_value(self.ccs_info['ccs_min_f_wt'])}\n"
-        info_str += f"  {Fore.CYAN}{'ccs_max_f_non_wt / ccs_min_f_non_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['ccs_max_f_non_wt'])} / {format_value(self.ccs_info['ccs_min_f_non_wt'])}\n"
-        info_str += f"  {Fore.CYAN}{'css_max_v_wt / css_min_v_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['css_max_v_wt'])} / {format_value(self.ccs_info['css_min_v_wt'])}\n"
-        info_str += f"  {Fore.CYAN}{'css_max_v_non_wt / css_min_v_non_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['css_max_v_non_wt'])} / {format_value(self.ccs_info['css_min_v_non_wt'])}\n"
+        if self.checked_components:
+            info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Connected Components Info:{Style.RESET_ALL}\n"
+            info_str += f"  {Fore.CYAN}{'#ccs':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['#ccs'])}\n"
+            info_str += f"  {Fore.CYAN}{'#ccs[split]: [wt=True]/[wt=False]':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['#ccs[split][wt=True]'])} / {format_value(self.ccs_info['#ccs[split][wt=False]'])}\n"
+            info_str += f"  {Fore.CYAN}{'ccs_max_f_wt / ccs_min_f_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['ccs_max_f_wt'])} / {format_value(self.ccs_info['ccs_min_f_wt'])}\n"
+            info_str += f"  {Fore.CYAN}{'ccs_max_f_non_wt / ccs_min_f_non_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['ccs_max_f_non_wt'])} / {format_value(self.ccs_info['ccs_min_f_non_wt'])}\n"
+            info_str += f"  {Fore.CYAN}{'css_max_v_wt / css_min_v_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['css_max_v_wt'])} / {format_value(self.ccs_info['css_min_v_wt'])}\n"
+            info_str += f"  {Fore.CYAN}{'css_max_v_non_wt / css_min_v_non_wt':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.ccs_info['css_max_v_non_wt'])} / {format_value(self.ccs_info['css_min_v_non_wt'])}\n"
+        else:
+            info_str += f"\n{Fore.MAGENTA}{Style.BRIGHT}Connected Components Info:{Style.RESET_ALL}\n"
+            info_str += f"  {Fore.CYAN}{'INFO':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {CHECK_COMPONENTS_SUGGESTION_PROMPT}\n"
 
         info_str += f"\n{Fore.CYAN}{Style.BRIGHT}╚═══════════════════════╝{Style.RESET_ALL}"
         return info_str
