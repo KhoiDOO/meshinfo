@@ -176,6 +176,9 @@ DIALOG_TITLE_SELECT_POINT_CLOUD = "Select Point Cloud File"
 COPLANAR_TOLERANCE = 1e-8  # Tolerance for coplanar vertex detection
 NORMALIZE_BOUND = 0.95  # Default bound for vertex normalization
 MANIFOLD_EDGE_COUNT = 2  # Expected edge count for manifold meshes
+CHECK_GEOMETRY_SUGGESTION_PROMPT = "Turn on geometry checking for more detailed analysis (may increase processing time)."
+CHECK_COMPONENTS_SUGGESTION_PROMPT = "Turn on connected component checking for more detailed analysis (may increase processing time)."
+CHECK_TOPOLOGY_SUGGESTION_PROMPT = "Turn on topology checking for more detailed analysis (may increase processing time)."
 CHECK_INTERSECTION_SUGGESTION_PROMPT = None # "Turn on intersection checking for more detailed analysis (may increase processing time)."
 CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT = None # "Turn on non-manifold vertex checking for more detailed analysis (may increase processing time)."
 
