@@ -7,17 +7,7 @@ import warnings
 from colorama import Fore, Style, init
 from . import format_value, format_bool
 
-from ..constants import (
-    COPLANAR_TOLERANCE,
-    MANIFOLD_EDGE_COUNT,
-    FORMAT_LABEL_WIDTH,
-    CHECK_COMPONENTS_SUGGESTION_PROMPT,
-    CHECK_INTERSECTION_SUGGESTION_PROMPT,
-    CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT,
-    CHECK_GEOMETRY_SUGGESTION_PROMPT,
-    CHECK_TOPOLOGY_SUGGESTION_PROMPT,
-    FORMAT_PRECISION_COORD
-)
+from ..constants import *
 
 from trimesh.triangles import mass_properties, MassProperties
 
@@ -152,32 +142,39 @@ class MeshInfo:
         self, 
         mesh: trimesh.Trimesh, 
         name: str = "Mesh",
-        check_components: bool = False,
-        check_intersection: bool = False,
-        check_nonmanifold_vertices: bool = False,
-        check_geometry: bool = False,
-        check_topology: bool = False,
-        max_num_contacts: int = 1000
+        check_components: bool = DEFAULT_CHECK_COMPONENTS,
+        check_intersection: bool = DEFAULT_CHECK_INTERSECTION,
+        check_nonmanifold_vertices: bool = DEFAULT_CHECK_NONMANIFOLD_VERTICES,
+        check_geometry: bool = DEFAULT_CHECK_GEOMETRY,
+        check_topology: bool = DEFAULT_CHECK_TOPOLOGY,
+        max_num_contacts: int = DEFAULT_MAX_CONTACTS,
+        verbose: bool = DEFAULT_VERBOSE
     ):
         self.mesh = mesh
         self.name = name
+        self.verbose = verbose
 
         # General Properties
+        if verbose: print(f"{Fore.YELLOW}Computing general properties...{Style.RESET_ALL}")
         self.euler = mesh.euler_number
         self.genus = 1 - self.euler / 2
 
         # Geometric Properties
         self.check_geometry = check_geometry
         if check_geometry:
+            if verbose: print(f"{Fore.YELLOW}Computing geometric properties...{Style.RESET_ALL}")
             self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
             self.area = mesh.area
             self.bounds = mesh.bounds
             self.extents = np.ptp(self.bounds, axis=0)
+        else:
+            if verbose: print(f"{Fore.YELLOW}Skipping geometric properties. {CHECK_GEOMETRY_SUGGESTION_PROMPT}{Style.RESET_ALL}")
         
         # Connected Components
         self.checked_components = check_components
         self.check_topology = check_topology
         if self.checked_components:
+            if verbose: print(f"{Fore.YELLOW}Computing connected components...{Style.RESET_ALL}")
             self.body_count = mesh.body_count if check_components else CHECK_COMPONENTS_SUGGESTION_PROMPT
             self.non_watertight_components = mesh.split(only_watertight=False) if check_components else []
             self.watertight_components = mesh.split(only_watertight=True) if check_components else []
@@ -185,8 +182,11 @@ class MeshInfo:
             self.nwt_css_f_num = [len(c.faces) for c in self.non_watertight_components]
             self.wt_css_v_num = [len(c.vertices) for c in self.watertight_components]
             self.nwt_css_v_num = [len(c.vertices) for c in self.non_watertight_components]
+        else:
+            if verbose: print(f"{Fore.YELLOW}Skipping connected components. {CHECK_COMPONENTS_SUGGESTION_PROMPT}{Style.RESET_ALL}")
 
         # Vertex Properties
+        if verbose: print(f"{Fore.YELLOW}Computing vertex properties...{Style.RESET_ALL}")
         self.vertex_defects: np.ndarray = mesh.vertex_defects
         self.vertex_degree: np.ndarray = mesh.vertex_degree
 
@@ -198,6 +198,7 @@ class MeshInfo:
             if check_nonmanifold_vertices else CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT
 
         # Edge Properties
+        if verbose: print(f"{Fore.YELLOW}Computing edge properties...{Style.RESET_ALL}")
         self.edges_unique: np.ndarray
         self.edges_counts: np.ndarray
         self.edges_unique, self.edges_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
@@ -210,6 +211,7 @@ class MeshInfo:
         self.num_nonmanifold_edges = np.sum(self.nonmanifold_edge_mask).item()
 
         # Intersection and Manifold Checks
+        if verbose: print(f"{Fore.YELLOW}Computing intersection and manifold properties...{Style.RESET_ALL}")
         self.checked_intersection = check_intersection
         self.intersected_face_ids = get_intersected_tria_ids(mesh, max_num_contacts) \
             if check_intersection else []
@@ -222,6 +224,7 @@ class MeshInfo:
             if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
         
         # Face Properties
+        if verbose: print(f"{Fore.YELLOW}Computing face properties...{Style.RESET_ALL}")
         self.nondegenerate_faces_mask = mesh.nondegenerate_faces()
         self.num_degenerate_faces = np.sum(~self.nondegenerate_faces_mask).item()
         self.num_nondegenerate_faces = np.sum(self.nondegenerate_faces_mask).item()
@@ -230,6 +233,7 @@ class MeshInfo:
         self.face_adjacency_angles: np.ndarray = mesh.face_adjacency_angles
         self.num_dup_faces = get_num_dup_faces(mesh)
         
+        if verbose: print(f"{Fore.YELLOW}Compiling statistics and properties...{Style.RESET_ALL}")
         self.stats = {
             "#vertices": len(mesh.vertices),
             "#faces": len(mesh.faces),
@@ -434,7 +438,7 @@ class MeshInfo:
         info_str += f"\n{Fore.CYAN}{Style.BRIGHT}╚═══════════════════════╝{Style.RESET_ALL}"
         return info_str
 
-    def to_dict(self, np2list=True):
+    def to_dict(self, np2list=True, nested=False) -> dict:
 
         info_dict = {
             **self.stats,
@@ -444,15 +448,33 @@ class MeshInfo:
             **self.edges_info,
             **self.faces_info,
             **self.ccs_info
+        } if nested else {
+            "stats": self.stats,
+            "properties": self.properties,
+            "analysis": self.analysis,
+            "vertices_info": self.vertices_info,
+            "edges_info": self.edges_info,
+            "faces_info": self.faces_info,
+            "ccs_info": self.ccs_info
         }
 
         if np2list:
-            for key, value in info_dict.items():
-                if isinstance(value, np.ndarray):
-                    if value.ndim == 0:
+            if nested:
+                for section_key, section_dict in info_dict.items():
+                    for key, value in section_dict.items():
+                        if isinstance(value, np.ndarray):
+                            if value.ndim == 0:
+                                info_dict[section_key][key] = value.item()
+                            info_dict[section_key][key] = value.tolist()
+                        elif isinstance(value, (np.integer, np.floating)):
+                            info_dict[section_key][key] = value.item()
+            else:
+                for key, value in info_dict.items():
+                    if isinstance(value, np.ndarray):
+                        if value.ndim == 0:
+                            info_dict[key] = value.item()
+                        info_dict[key] = value.tolist()
+                    elif isinstance(value, (np.integer, np.floating)):
                         info_dict[key] = value.item()
-                    info_dict[key] = value.tolist()
-                elif isinstance(value, (np.integer, np.floating)):
-                    info_dict[key] = value.item()
 
         return info_dict
