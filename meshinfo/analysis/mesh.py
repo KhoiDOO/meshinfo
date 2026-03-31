@@ -28,7 +28,7 @@ def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = 1000
     mesh_obj = fcl.CollisionObject(model, fcl.Transform())
 
     # 2. Collision Request
-    max_num_contacts = max_num_contacts if max_num_contacts is not None else len(mesh.faces) ** 2
+    max_num_contacts = max_num_contacts if max_num_contacts != -1 else len(mesh.faces) ** 2
     request = fcl.CollisionRequest(
         enable_contact=True, 
         num_max_contacts=max_num_contacts
