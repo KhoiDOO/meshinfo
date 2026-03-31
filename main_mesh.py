@@ -357,10 +357,6 @@ class MeshViewer:
         u_state = glfw.get_key(self.window, glfw.KEY_U)
         if u_state == glfw.PRESS and self.last_u_state == glfw.RELEASE:
             self.color_theme = THEME_LIGHT if self.color_theme == THEME_DARK else THEME_DARK
-            if self.mesh_buffers:
-                colors_scheme = self.get_color_scheme()
-                for buffer in self.mesh_buffers:
-                    buffer.refresh_colors(colors_scheme)
         self.last_u_state = u_state
 
         # Handle [ and ] for layout spacing
@@ -468,7 +464,8 @@ class MeshViewer:
             # --- DRAW PASS 1: Main Mesh ---
             if buffer.main_index_count > 0:
                 glBindVertexArray(buffer.main_vao)
-                glUniform1i(self.use_override_loc, False)
+                glUniform1i(self.use_override_loc, True)
+                glUniform3f(self.override_loc, *colors_scheme['mesh'])
 
                 if self.mode == MODE_SOLID or self.mode == MODE_BOTH:
                     # Add offset to push solid faces away from lines/highlighter
