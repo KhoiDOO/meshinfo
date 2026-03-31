@@ -4,7 +4,7 @@ import numpy as np
 from OpenGL.GL import *
 
 from ..analysis.pc import PointInfo
-from ..constants import COLOR_OFFSET, VERTEX_STRIDE
+from ..constants import VERTEX_STRIDE
 
 
 class PointBuffer:
@@ -50,14 +50,12 @@ class PointBuffer:
         self.setup_point_cloud_buffer(color_scheme)
     
     def refresh_colors(self, color_scheme):
-        if self.points is None:
-            return
-        self.setup_point_cloud_buffer(color_scheme)
+        # Colors are provided by uniforms at draw time.
+        return
 
     def setup_point_cloud_buffer(self, color_scheme):
         points = self.points
-        colors = np.full((points.shape[0], 3), color_scheme["point_cloud"], dtype=np.float32)
-        data = np.hstack((points, colors)).astype(np.float32)
+        data = points.astype(np.float32)
 
         glBindVertexArray(self.point_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.point_vbo)
@@ -65,8 +63,7 @@ class PointBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         # Prepare Point Cloud Normals
         if self.normals is None:
@@ -77,8 +74,7 @@ class PointBuffer:
         line_verts[0::2] = points
         line_verts[1::2] = points + normals * self.normal_length
 
-        colors = np.full((line_verts.shape[0], 3), color_scheme["point_cloud_normals"], dtype=np.float32)
-        data = np.hstack((line_verts, colors)).astype(np.float32)
+        data = line_verts.astype(np.float32)
 
         glBindVertexArray(self.normal_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.normal_vbo)
@@ -86,7 +82,6 @@ class PointBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return points.shape[0], line_verts.shape[0]
