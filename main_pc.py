@@ -195,10 +195,6 @@ class PointViewer:
         u_state = glfw.get_key(self.window, glfw.KEY_U)
         if u_state == glfw.PRESS and self.last_u_state == glfw.RELEASE:
             self.color_theme = THEME_LIGHT if self.color_theme == THEME_DARK else THEME_DARK
-            if self.point_buffers:
-                colors_scheme = self.get_color_scheme()
-                for buffer in self.point_buffers:
-                    buffer.refresh_colors(colors_scheme)
         self.last_u_state = u_state
 
         # Handle [ and ] for layout spacing
@@ -302,6 +298,7 @@ class PointViewer:
             )
             mvp = proj * view * model
             glUniformMatrix4fv(self.mvp_loc, 1, GL_FALSE, mvp)
+            glUniform1i(self.use_override_loc, True)
 
             glBindVertexArray(buffer.point_vao)
             glUniform3f(self.override_loc, *colors_scheme['point_cloud'])
