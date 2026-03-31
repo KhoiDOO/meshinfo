@@ -134,8 +134,8 @@ OBJECT_SCALE_MIN = 0.1
 OBJECT_SCALE_MAX = 10.0
 
 # OpenGL Settings
-VERTEX_STRIDE = 24  # Size in bytes: Pos(3*4) + Color(3*4)
-COLOR_OFFSET = 12  # Offset to color data in vertex buffer
+VERTEX_STRIDE = 12  # Size in bytes: Pos(3*4)
+COLOR_OFFSET = 12  # Deprecated: color is now controlled by uniforms
 POLYGON_OFFSET_FACTOR = 1.0
 POLYGON_OFFSET_UNITS = 1.0
 
