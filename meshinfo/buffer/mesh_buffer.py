@@ -5,7 +5,7 @@ import trimesh
 import numpy as np
 from OpenGL.GL import *
 
-from ..constants import COLOR_OFFSET, VERTEX_STRIDE
+from ..constants import VERTEX_STRIDE
 
 from ..analysis.mesh import MeshInfo
 
@@ -92,11 +92,6 @@ class MeshBuffer:
         self.original_bounds_size = np.copy(self.bounds_size)
         self.update_gpu_buffers(color_scheme)
 
-    def refresh_colors(self, color_scheme: dict):
-        if self.mesh is None:
-            return
-        self.update_gpu_buffers(color_scheme)
-
     def update_gpu_buffers(self, color_scheme: dict):
         # Split faces into two groups
         all_indices = np.arange(len(self.mesh.faces))
@@ -130,15 +125,13 @@ class MeshBuffer:
         # 6. Prepare Non-manifold Vertices
         self.nonmanifold_vertices_count = self.setup_nonmanifold_vertices_buffer(color_scheme)
 
-    def setup_buffer(self, vao, vbo, ebo, faces, color_scheme: dict):
+    def setup_buffer(self, vao, vbo, ebo, faces):
         if len(faces) == 0:
             return 0
 
-        # Un-index vertices so each triangle has unique data (easier for coloring/normals)
+        # Un-index vertices so each triangle has unique data.
         vertices = self.mesh.vertices[faces].reshape(-1, 3)
-        colors = np.full((vertices.shape[0], 3), color_scheme["mesh"], dtype=np.float32)
-
-        data = np.hstack((vertices, colors)).astype(np.float32)
+        data = vertices.astype(np.float32)
         indices = np.arange(len(vertices)).astype(np.uint32)
 
         glBindVertexArray(vao)
@@ -148,18 +141,16 @@ class MeshBuffer:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_DYNAMIC_DRAW)
 
-        # Layout: Pos(3), Color(3)
+        # Layout: Pos(3)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return len(indices)
 
-    def setup_point_cloud_buffer(self, color_scheme: dict):
+    def setup_point_cloud_buffer(self):
         points = self.points
-        colors = np.full((points.shape[0], 3), color_scheme["point_cloud"], dtype=np.float32)
-        data = np.hstack((points, colors)).astype(np.float32)
+        data = points.astype(np.float32)
 
         glBindVertexArray(self.point_cloud_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.point_cloud_vbo)
@@ -167,8 +158,7 @@ class MeshBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         # Prepare Point Cloud Normals
         normals = self.point_normals
@@ -176,8 +166,7 @@ class MeshBuffer:
         line_verts[0::2] = points
         line_verts[1::2] = points + normals * self.normal_length
 
-        colors = np.full((line_verts.shape[0], 3), color_scheme["point_cloud_normals"], dtype=np.float32)
-        data = np.hstack((line_verts, colors)).astype(np.float32)
+        data = line_verts.astype(np.float32)
 
         glBindVertexArray(self.point_cloud_normals_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.point_cloud_normals_vbo)
@@ -185,12 +174,11 @@ class MeshBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return points.shape[0], line_verts.shape[0]
 
-    def setup_face_normals_buffer(self, color_scheme: dict):
+    def setup_face_normals_buffer(self):
         # Face centers and normals
         centers = self.mesh.triangles_center
         normals = self.mesh.face_normals
@@ -199,8 +187,7 @@ class MeshBuffer:
         line_verts[0::2] = centers
         line_verts[1::2] = centers + normals * self.normal_length
 
-        colors = np.full((line_verts.shape[0], 3), color_scheme["face_normals"], dtype=np.float32)
-        data = np.hstack((line_verts, colors)).astype(np.float32)
+        data = line_verts.astype(np.float32)
 
         glBindVertexArray(self.face_normals_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.face_normals_vbo)
@@ -208,12 +195,11 @@ class MeshBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return line_verts.shape[0]
 
-    def setup_vertex_normals_buffer(self, color_scheme: dict):
+    def setup_vertex_normals_buffer(self):
         verts = self.mesh.vertices
         normals = self.mesh.vertex_normals
 
@@ -221,21 +207,19 @@ class MeshBuffer:
         line_verts[0::2] = verts
         line_verts[1::2] = verts + normals * self.normal_length
 
-        colors = np.full((line_verts.shape[0], 3), color_scheme["vertex_normals"], dtype=np.float32)
-        data = np.hstack((line_verts, colors)).astype(np.float32)
+        data = line_verts.astype(np.float32)
 
         glBindVertexArray(self.vertex_normals_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.vertex_normals_vbo)
-        glBufferData(GL_ARRAY_BUFFER, data.nbytes, data, GL_DYNAMIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, data.nbytes, data, GL_STATIC_DRAW)
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return line_verts.shape[0]
 
-    def setup_nonmanifold_edges_buffer(self, color_scheme: dict):
+    def setup_nonmanifold_edges_buffer(self):
         if len(self.mesh_info.nonmanifold_edges) == 0: return 0
 
         # Get vertex positions for each non-manifold edge
@@ -247,8 +231,7 @@ class MeshBuffer:
         line_verts[0::2] = verts[nonmanifold_edges[:, 0]]
         line_verts[1::2] = verts[nonmanifold_edges[:, 1]]
 
-        colors = np.full((line_verts.shape[0], 3), color_scheme["nonmanifold_edges"], dtype=np.float32)
-        data = np.hstack((line_verts, colors)).astype(np.float32)
+        data = line_verts.astype(np.float32)
 
         glBindVertexArray(self.nonmanifold_edges_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.nonmanifold_edges_vbo)
@@ -256,12 +239,11 @@ class MeshBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return line_verts.shape[0]
 
-    def setup_nonmanifold_vertices_buffer(self, color_scheme: dict):
+    def setup_nonmanifold_vertices_buffer(self):
         if len(self.mesh_info.nonmanifold_vertices) == 0: return 0
 
         # Get vertex positions for non-manifold vertices
@@ -271,8 +253,7 @@ class MeshBuffer:
         # Get positions of non-manifold vertices
         vertex_positions = verts[nonmanifold_vertices]
 
-        colors = np.full((vertex_positions.shape[0], 3), color_scheme["nonmanifold_vertices"], dtype=np.float32)
-        data = np.hstack((vertex_positions, colors)).astype(np.float32)
+        data = vertex_positions.astype(np.float32)
 
         glBindVertexArray(self.nonmanifold_vertices_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.nonmanifold_vertices_vbo)
@@ -280,7 +261,6 @@ class MeshBuffer:
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(COLOR_OFFSET))
-        glEnableVertexAttribArray(1)
+        glDisableVertexAttribArray(1)
 
         return vertex_positions.shape[0]
