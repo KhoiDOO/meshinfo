@@ -127,7 +127,6 @@ class MeshInfo:
         check_nonmanifold_vertices: bool = DEFAULT_CHECK_NONMANIFOLD_VERTICES,
         check_geometry: bool = DEFAULT_CHECK_GEOMETRY,
         check_topology: bool = DEFAULT_CHECK_TOPOLOGY,
-        max_num_contacts: int = DEFAULT_MAX_CONTACTS,
         verbose: bool = DEFAULT_VERBOSE
     ):
         self.mesh = mesh
@@ -200,7 +199,7 @@ class MeshInfo:
         # Intersection and Manifold Checks
         if verbose: print(f"{Fore.YELLOW}Computing intersection and manifold properties...{Style.RESET_ALL}")
         self.checked_intersection = check_intersection
-        self.intersected_face_ids = get_intersected_tria_ids(mesh, max_num_contacts) \
+        self.intersected_face_ids = get_intersected_tria_ids(mesh) \
             if check_intersection else []
         self.num_intersected_faces = len(self.intersected_face_ids) \
             if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
