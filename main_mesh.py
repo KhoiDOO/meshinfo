@@ -48,6 +48,7 @@ class MeshViewer:
         self.show_point_cloud_normals = DEFAULT_SHOW_POINT_CLOUD_NORMALS
         self.show_nonmanifold_edges = DEFAULT_SHOW_NONMANIFOLD_EDGES
         self.show_nonmanifold_vertices = DEFAULT_SHOW_NONMANIFOLD_VERTICES
+        self.show_edges_by_type = False
 
         self.color_theme = DEFAULT_COLOR_THEME
 
@@ -238,7 +239,6 @@ class MeshViewer:
             normal_length,
             points,
             point_normals,
-            self.get_color_scheme(),
         )
         self.mesh_buffers.append(mesh_buffer)
 
@@ -323,10 +323,10 @@ class MeshViewer:
             self.show_point_cloud_normals = not self.show_point_cloud_normals
         self.last_y_state = y_state
 
-        # Handle 'H' for non-manifold edges
+        # Handle 'H' for showing edges by type (internal, boundary, non-manifold)
         h_state = glfw.get_key(self.window, glfw.KEY_H)
         if h_state == glfw.PRESS and self.last_h_state == glfw.RELEASE:
-            self.show_nonmanifold_edges = not self.show_nonmanifold_edges
+            self.show_edges_by_type = not self.show_edges_by_type
         self.last_h_state = h_state
 
         # Handle 'V' for non-manifold vertices
@@ -524,6 +524,30 @@ class MeshViewer:
                 glBindVertexArray(buffer.point_cloud_normals_vao)
                 glUniform3f(self.override_loc, *colors_scheme['point_cloud_normals'])
                 glDrawArrays(GL_LINES, 0, buffer.point_cloud_normals_count)
+
+            if self.show_edges_by_type:
+                # Render edges by type on top without depth testing
+                glDisable(GL_DEPTH_TEST)
+                
+                # Internal Edges
+                if buffer.internal_edges_count > 0:
+                    glBindVertexArray(buffer.internal_edges_vao)
+                    glUniform3f(self.override_loc, *colors_scheme['internal_edges'])
+                    glDrawArrays(GL_LINES, 0, buffer.internal_edges_count)
+                
+                # Boundary Edges
+                if buffer.boundary_edges_count > 0:
+                    glBindVertexArray(buffer.boundary_edges_vao)
+                    glUniform3f(self.override_loc, *colors_scheme['boundary_edges'])
+                    glDrawArrays(GL_LINES, 0, buffer.boundary_edges_count)
+                
+                # Non-manifold Edges
+                if buffer.nonmanifold_edges_count > 0:
+                    glBindVertexArray(buffer.nonmanifold_edges_vao)
+                    glUniform3f(self.override_loc, *colors_scheme['nonmanifold_edges'])
+                    glDrawArrays(GL_LINES, 0, buffer.nonmanifold_edges_count)
+                
+                glEnable(GL_DEPTH_TEST)
 
             if self.show_nonmanifold_edges and buffer.nonmanifold_edges_count > 0:
                 # Render non-manifold edges on top without depth testing

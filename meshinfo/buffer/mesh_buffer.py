@@ -63,6 +63,16 @@ class MeshBuffer:
         self.nonmanifold_edges_vbo = glGenBuffers(1)
         self.nonmanifold_edges_count = 0
 
+        # Internal Edges Buffer (lines)
+        self.internal_edges_vao = glGenVertexArrays(1)
+        self.internal_edges_vbo = glGenBuffers(1)
+        self.internal_edges_count = 0
+
+        # Boundary Edges Buffer (lines)
+        self.boundary_edges_vao = glGenVertexArrays(1)
+        self.boundary_edges_vbo = glGenBuffers(1)
+        self.boundary_edges_count = 0
+
         # Non-manifold Vertices Buffer (points)
         self.nonmanifold_vertices_vao = glGenVertexArrays(1)
         self.nonmanifold_vertices_vbo = glGenBuffers(1)
@@ -74,8 +84,7 @@ class MeshBuffer:
         mesh_info: MeshInfo, 
         normal_length: float, 
         points: np.ndarray, 
-        point_normals: np.ndarray, 
-        color_scheme: dict
+        point_normals: np.ndarray
     ):
         self.mesh = mesh
         self.mesh_info = mesh_info
@@ -90,9 +99,9 @@ class MeshBuffer:
         self.original_bounds = np.copy(self.bounds)
         self.original_bounds_center = np.copy(self.bounds_center)
         self.original_bounds_size = np.copy(self.bounds_size)
-        self.update_gpu_buffers(color_scheme)
+        self.update_gpu_buffers()
 
-    def update_gpu_buffers(self, color_scheme: dict):
+    def update_gpu_buffers(self):
         # Split faces into two groups
         all_indices = np.arange(len(self.mesh.faces))
         intersected_mask = np.array([i in self.intersected_face_ids for i in all_indices])
@@ -100,7 +109,12 @@ class MeshBuffer:
         # 1. Prepare Main Mesh (Not highlighted)
         # main_faces = self.mesh.faces[~intersected_mask]
         main_faces = self.mesh.faces
-        self.main_index_count = self.setup_buffer(self.main_vao, self.main_vbo, self.main_ebo, main_faces, color_scheme)
+        self.main_index_count = self.setup_buffer(
+            self.main_vao, 
+            self.main_vbo, 
+            self.main_ebo, 
+            main_faces
+        )
 
         # 2. Prepare Intersected Faces (Selected)
         intersected_faces = self.mesh.faces[intersected_mask]
@@ -109,21 +123,24 @@ class MeshBuffer:
             self.intersected_vbo,
             self.intersected_ebo,
             intersected_faces,
-            color_scheme,
         )
 
         # 3. Prepare Normals
-        self.face_normals_count = self.setup_face_normals_buffer(color_scheme)
-        self.vertex_normals_count = self.setup_vertex_normals_buffer(color_scheme)
+        self.face_normals_count = self.setup_face_normals_buffer()
+        self.vertex_normals_count = self.setup_vertex_normals_buffer()
 
         # 4. Prepare Point Cloud
-        self.point_cloud_count, self.point_cloud_normals_count = self.setup_point_cloud_buffer(color_scheme)
+        self.point_cloud_count, self.point_cloud_normals_count = self.setup_point_cloud_buffer()
 
         # 5. Prepare Non-manifold Edges
-        self.nonmanifold_edges_count = self.setup_nonmanifold_edges_buffer(color_scheme)
+        self.nonmanifold_edges_count = self.setup_nonmanifold_edges_buffer()
 
         # 6. Prepare Non-manifold Vertices
-        self.nonmanifold_vertices_count = self.setup_nonmanifold_vertices_buffer(color_scheme)
+        self.nonmanifold_vertices_count = self.setup_nonmanifold_vertices_buffer()
+
+        # 7. Prepare Internal and Boundary Edges
+        self.internal_edges_count = self.setup_internal_edges_buffer()
+        self.boundary_edges_count = self.setup_boundary_edges_buffer()
 
     def setup_buffer(self, vao, vbo, ebo, faces):
         if len(faces) == 0:
@@ -264,3 +281,35 @@ class MeshBuffer:
         glDisableVertexAttribArray(1)
 
         return vertex_positions.shape[0]
+
+    def setup_internal_edges_buffer(self):
+        if len(self.mesh_info.internal_edges) == 0: return 0
+        edges = self.mesh_info.internal_edges
+        verts = self.mesh.vertices
+        line_verts = np.empty((edges.shape[0] * 2, 3), dtype=np.float32)
+        line_verts[0::2] = verts[edges[:, 0]]
+        line_verts[1::2] = verts[edges[:, 1]]
+        data = line_verts.astype(np.float32)
+        glBindVertexArray(self.internal_edges_vao)
+        glBindBuffer(GL_ARRAY_BUFFER, self.internal_edges_vbo)
+        glBufferData(GL_ARRAY_BUFFER, data.nbytes, data, GL_DYNAMIC_DRAW)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
+        glEnableVertexAttribArray(0)
+        glDisableVertexAttribArray(1)
+        return line_verts.shape[0]
+
+    def setup_boundary_edges_buffer(self):
+        if len(self.mesh_info.boundary_edges) == 0: return 0
+        edges = self.mesh_info.boundary_edges
+        verts = self.mesh.vertices
+        line_verts = np.empty((edges.shape[0] * 2, 3), dtype=np.float32)
+        line_verts[0::2] = verts[edges[:, 0]]
+        line_verts[1::2] = verts[edges[:, 1]]
+        data = line_verts.astype(np.float32)
+        glBindVertexArray(self.boundary_edges_vao)
+        glBindBuffer(GL_ARRAY_BUFFER, self.boundary_edges_vbo)
+        glBufferData(GL_ARRAY_BUFFER, data.nbytes, data, GL_DYNAMIC_DRAW)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, VERTEX_STRIDE, ctypes.c_void_p(0))
+        glEnableVertexAttribArray(0)
+        glDisableVertexAttribArray(1)
+        return line_verts.shape[0]

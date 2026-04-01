@@ -158,6 +158,9 @@ class MeshInfo:
         if verbose: print(f"{Fore.YELLOW}Computing general properties...{Style.RESET_ALL}")
         self.euler = mesh.euler_number
         self.genus = 1 - self.euler / 2
+        self.edges_unique: np.ndarray
+        self.edges_counts: np.ndarray
+        self.edges_unique, self.edges_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
 
         # Geometric Properties
         self.check_geometry = check_geometry
@@ -190,6 +193,9 @@ class MeshInfo:
         self.vertex_defects: np.ndarray = mesh.vertex_defects
         self.vertex_degree: np.ndarray = mesh.vertex_degree
 
+        unique_vertices = np.unique(np.round(mesh.vertices, decimals=DUPLICATE_VERTICES_DECIMALS), axis=0)
+        self.num_duplicate_vertices = len(mesh.vertices) - len(unique_vertices)
+
         self.checked_nonmanifold_vertices = check_nonmanifold_vertices
         self.nonmanifold_vertices = get_nonmanifold_vertices(
             mesh.vertices, mesh.faces, self.edges_unique, self.edges_counts, mesh.face_adjacency
@@ -199,9 +205,6 @@ class MeshInfo:
 
         # Edge Properties
         if verbose: print(f"{Fore.YELLOW}Computing edge properties...{Style.RESET_ALL}")
-        self.edges_unique: np.ndarray
-        self.edges_counts: np.ndarray
-        self.edges_unique, self.edges_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
         self.vertex_connectivity = np.bincount(self.edges_unique.flatten(), minlength=len(mesh.vertices))
         self.edges_unique_length: np.ndarray
         self.edges_unique_length = self.mesh.edges_unique_length
@@ -209,6 +212,10 @@ class MeshInfo:
         self.nonmanifold_edge_mask = self.edges_counts > 2  # Edges shared by more than 2 faces
         self.nonmanifold_edges = self.edges_unique[self.nonmanifold_edge_mask]
         self.num_nonmanifold_edges = np.sum(self.nonmanifold_edge_mask).item()
+        
+        # Identify internal and boundary edges for visualization
+        self.internal_edges = self.edges_unique[self.edges_counts == 2]
+        self.boundary_edges = self.edges_unique[self.edges_counts == 1]
 
         # Intersection and Manifold Checks
         if verbose: print(f"{Fore.YELLOW}Computing intersection and manifold properties...{Style.RESET_ALL}")
@@ -272,6 +279,7 @@ class MeshInfo:
             "#coplanar_vertices": np.sum(np.abs(self.vertex_defects) < COPLANAR_TOLERANCE).item(),
             "#convex_vertices": np.sum(self.vertex_defects > 0).item(),
             "#concave_vertices": np.sum(self.vertex_defects < 0).item(),
+            "#duplicate_vertices": self.num_duplicate_vertices,
             "min_v_degree": int(self.vertex_degree.min()),
             "max_v_degree": int(self.vertex_degree.max()),
         }
@@ -372,6 +380,8 @@ class MeshInfo:
         info_str += f"{format_value(self.vertices_info['#coplanar_vertices'])} / "
         info_str += f"{format_value(self.vertices_info['#convex_vertices'])} / "
         info_str += f"{format_value(self.vertices_info['#concave_vertices'])}\n"
+        
+        info_str += f"  {Fore.CYAN}{'#duplicate_vertices':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} {format_value(self.vertices_info['#duplicate_vertices'])}\n"
         
         info_str += f"  {Fore.CYAN}{'min / max vertex_degree':.<{FORMAT_LABEL_WIDTH}}{Style.RESET_ALL} "
         info_str += f"{format_value(self.vertices_info['min_v_degree'])} / "

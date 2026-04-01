@@ -59,6 +59,8 @@ COLOR_SCHEME_DARK = {
     'point_cloud': (1.0, 1.0, 0.0),  # Yellow
     'point_cloud_normals': (1.0, 0.0, 1.0),  # Magenta
     'nonmanifold_edges': (1.0, 0.0, 0.0),  # Red
+    'internal_edges': (0.6, 0.6, 0.6),  # Light gray
+    'boundary_edges': (0.2, 0.6, 1.0),  # Blue
     'nonmanifold_vertices': (0.0, 1.0, 1.0)  # Cyan
 }
 
@@ -73,6 +75,8 @@ COLOR_SCHEME_LIGHT = {
     'point_cloud': (0.8, 0.8, 0.0),  # Dark yellow
     'point_cloud_normals': (1.0, 0.0, 1.0),  # Magenta
     'nonmanifold_edges': (0.8, 0.0, 0.0),  # Dark red
+    'internal_edges': (0.3, 0.3, 0.3),  # Even lighter gray
+    'boundary_edges': (0.0, 0.4, 0.8),  # Dark blue
     'nonmanifold_vertices': (0.0, 0.8, 0.8)  # Dark cyan
 }
 
@@ -176,6 +180,7 @@ DIALOG_TITLE_SELECT_POINT_CLOUD = "Select Point Cloud File"
 COPLANAR_TOLERANCE = 1e-8  # Tolerance for coplanar vertex detection
 NORMALIZE_BOUND = 0.95  # Default bound for vertex normalization
 MANIFOLD_EDGE_COUNT = 2  # Expected edge count for manifold meshes
+DUPLICATE_VERTICES_DECIMALS = 10  # Number of decimals for duplicate vertex detection
 CHECK_GEOMETRY_SUGGESTION_PROMPT = "Turn on geometry checking for more detailed analysis (may increase processing time)."
 CHECK_COMPONENTS_SUGGESTION_PROMPT = "Turn on connected component checking for more detailed analysis (may increase processing time)."
 CHECK_TOPOLOGY_SUGGESTION_PROMPT = "Turn on topology checking for more detailed analysis (may increase processing time)."
@@ -191,5 +196,5 @@ DEFAULT_CHECK_INTERSECTION = False
 DEFAULT_CHECK_NONMANIFOLD_VERTICES = False
 DEFAULT_CHECK_GEOMETRY = False
 DEFAULT_CHECK_TOPOLOGY = False
-DEFAULT_MAX_CONTACTS = 1000
+DEFAULT_MAX_CONTACTS = 100000
 DEFAULT_VERBOSE = False
