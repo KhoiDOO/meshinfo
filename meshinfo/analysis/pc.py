@@ -1,4 +1,3 @@
-import trimesh
 import numpy as np
 from colorama import Fore, Style, init
 
