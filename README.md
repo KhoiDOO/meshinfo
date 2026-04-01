@@ -16,7 +16,6 @@ This project provides two complementary visualization applications for 3D data r
 ### Requirements
 - Python 3.7+
 - OpenGL 3.3+ capable graphics card
-- 2GB+ RAM (4GB+ for large point clouds)
 
 ### Setup
 
