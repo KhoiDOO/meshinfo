@@ -2,22 +2,16 @@ import trimesh
 import numpy as np
 import meshlib.mrmeshpy as mrmeshpy
 import meshlib.mrmeshnumpy as mrmeshnumpy
-import warnings
+import networkx as nx
 from colorama import Fore, Style, init
 from . import format_value, format_bool
 
 from ..constants import *
 
-from trimesh.triangles import mass_properties, MassProperties
-
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
 
-def is_manifold(edge_counts) -> bool:
-    is_manifold = np.all(edge_counts == MANIFOLD_EDGE_COUNT).item()
-    return is_manifold
-
-def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = 1000) -> list[int]:
+def get_intersected_tria_ids(mesh: trimesh.Trimesh) -> list[int]:
     # 1. Build the MeshLib Mesh
     # MeshLib expects float32 for vertices and int32 for faces
     vertices = mesh.vertices.astype(np.float32)
@@ -38,55 +32,43 @@ def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = 1000
 
     return list(intersected_ids)
 
-def get_nonmanifold_vertices(vertices, faces, edges_unique, edges_counts, face_adjacency) -> np.ndarray:
+def get_nonmanifold_vertices(mesh: trimesh.Trimesh, edges_unique: np.ndarray, edges_counts: np.ndarray) -> np.ndarray:
+    """
+    Find vertices that are non-manifold.
+    A vertex is non-manifold if:
+    1. It is part of a non-manifold edge (shared by > 2 faces).
+    2. Its adjacent faces do not form a single connected component (butterfly vertex).
+    """
     nonmanifold_vertices = set()
     
-    # First, collect vertices on non-manifold edges
-    nonmanifold_edge_mask = edges_counts != 2  # Edges shared by more or less than 2 faces
+    # 1. Vertices on non-manifold edges (count > 2)
+    nonmanifold_edge_mask = edges_counts > 2
     if np.any(nonmanifold_edge_mask):
         nonmanifold_edge_vertices = edges_unique[nonmanifold_edge_mask].flatten()
         nonmanifold_vertices.update(nonmanifold_edge_vertices)
-    else:
-        return np.array([], dtype=np.int32)
     
-    # Preprocess face adjacency into a more efficient lookup structure
-    # Build a dictionary: face_id -> list of adjacent face_ids
-    face_adjacency_dict: dict[int, list[int]] = {}
-    for face_pair in face_adjacency:
-        f1, f2 = face_pair[0], face_pair[1]
-        if f1 not in face_adjacency_dict:
-            face_adjacency_dict[f1] = []
-        if f2 not in face_adjacency_dict:
-            face_adjacency_dict[f2] = []
-        face_adjacency_dict[f1].append(f2)
-        face_adjacency_dict[f2].append(f1)
-    
-    # For each vertex, check if its adjacent faces form a single connected component
-    for vertex_idx in range(len(vertices)):
-        # Get all faces adjacent to this vertex
-        adjacent_faces = np.where(np.any(faces == vertex_idx, axis=1))[0]
+    # 2. Check for "butterfly" vertices (connected components of adjacent faces)
+    # trimesh.vertex_faces is a padded 2D array, where -1 indicates no face
+    for vertex_idx, face_indices in enumerate(mesh.vertex_faces):
+        # Filter out the padding (-1)
+        face_indices = face_indices[face_indices != -1]
         
-        if len(adjacent_faces) < 2:
+        if vertex_idx in nonmanifold_vertices or len(face_indices) < 2:
             continue
         
-        # Check connectivity using preprocessed face_adjacency_dict
-        adjacent_faces_set = set(adjacent_faces)
-        visited = set()
-        stack = [adjacent_faces[0]]
-        visited.add(adjacent_faces[0])
+        # Build a local adjacency graph for faces sharing this vertex
+        local_faces = mesh.faces[face_indices]
+        G = nx.Graph()
+        G.add_nodes_from(range(len(face_indices)))
         
-        while stack:
-            current_face = stack.pop()
-            # Get neighbors from the preprocessed dictionary
-            if current_face in face_adjacency_dict:
-                for neighbor_face in face_adjacency_dict[current_face]:
-                    # Only consider neighbors that are also adjacent to this vertex
-                    if neighbor_face in adjacent_faces_set and neighbor_face not in visited:
-                        visited.add(neighbor_face)
-                        stack.append(neighbor_face)
+        for i in range(len(face_indices)):
+            for j in range(i + 1, len(face_indices)):
+                # Share an edge if they share 2 vertices (one is vertex_idx)
+                shared_v = np.intersect1d(local_faces[i], local_faces[j])
+                if len(shared_v) >= 2:
+                    G.add_edge(i, j)
         
-        # If not all faces are connected, vertex is non-manifold
-        if len(visited) != len(adjacent_faces):
+        if not nx.is_connected(G):
             nonmanifold_vertices.add(vertex_idx)
     
     return np.array(sorted(list(nonmanifold_vertices)), dtype=np.int32)
@@ -103,18 +85,6 @@ def get_sphericity(volume, area) -> float:
         return 0.0
     sphericity = (np.pi ** (1/3)) * ((6 * abs(volume)) ** (2/3)) / area
     return sphericity
-
-def get_volume_center_mass_density(triangles: np.ndarray) -> np.ndarray:
-    triangles = np.asanyarray(triangles, dtype=np.float64)
-    
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=RuntimeWarning)
-        _mass_properties: MassProperties = mass_properties(triangles, skip_inertia=True)
-
-    volume = _mass_properties.volume
-    center_mass = _mass_properties.center_mass if volume != 0 else None
-
-    return volume, center_mass
 
 
 class MeshInfo:
@@ -137,15 +107,14 @@ class MeshInfo:
         if verbose: print(f"{Fore.YELLOW}Computing general properties...{Style.RESET_ALL}")
         self.euler = mesh.euler_number
         self.genus = 1 - self.euler / 2
-        self.edges_unique: np.ndarray
-        self.edges_counts: np.ndarray
         self.edges_unique, self.edges_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
 
         # Geometric Properties
         self.check_geometry = check_geometry
         if check_geometry:
             if verbose: print(f"{Fore.YELLOW}Computing geometric properties...{Style.RESET_ALL}")
-            self.volume, self.center_mass = get_volume_center_mass_density(mesh.triangles)
+            self.volume = mesh.volume
+            self.center_mass = mesh.center_mass if abs(self.volume) > 1e-12 else None
             self.area = mesh.area
             self.bounds = mesh.bounds
             self.extents = np.ptp(self.bounds, axis=0)
@@ -177,7 +146,7 @@ class MeshInfo:
 
         self.checked_nonmanifold_vertices = check_nonmanifold_vertices
         self.nonmanifold_vertices = get_nonmanifold_vertices(
-            mesh.vertices, mesh.faces, self.edges_unique, self.edges_counts, mesh.face_adjacency
+            mesh, self.edges_unique, self.edges_counts
         ) if check_nonmanifold_vertices else []
         self.num_nonmanifold_vertices = len(self.nonmanifold_vertices) \
             if check_nonmanifold_vertices else CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT
@@ -205,7 +174,7 @@ class MeshInfo:
             if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
         self.is_intersecting = self.num_intersected_faces > 0 \
             if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
-        self.is_manifold_ignore_intersection = is_manifold(self.edges_counts)
+        self.is_manifold_ignore_intersection = np.all(self.edges_counts == MANIFOLD_EDGE_COUNT).item()
         self.is_manifold = self.is_manifold_ignore_intersection and not self.is_intersecting \
             if check_intersection else CHECK_INTERSECTION_SUGGESTION_PROMPT
         
