@@ -1,8 +1,7 @@
-from tabnanny import check
-
 import trimesh
 import numpy as np
-import fcl
+import meshlib.mrmeshpy as mrmeshpy
+import meshlib.mrmeshnumpy as mrmeshnumpy
 import warnings
 from colorama import Fore, Style, init
 from . import format_value, format_bool
@@ -19,42 +18,23 @@ def is_manifold(edge_counts) -> bool:
     return is_manifold
 
 def get_intersected_tria_ids(mesh: trimesh.Trimesh, max_num_contacts: int = 1000) -> list[int]:
-    # 1. Build the FCL Model
-    model = fcl.BVHModel()
-    model.beginModel(len(mesh.vertices), len(mesh.faces))
-    model.addSubModel(mesh.vertices, mesh.faces)
-    model.endModel()
+    # 1. Build the MeshLib Mesh
+    # MeshLib expects float32 for vertices and int32 for faces
+    vertices = mesh.vertices.astype(np.float32)
+    faces = mesh.faces.astype(np.int32)
+    mrmesh_obj = mrmeshnumpy.meshFromFacesVerts(faces, vertices)
 
-    mesh_obj = fcl.CollisionObject(model, fcl.Transform())
-
-    # 2. Collision Request
-    max_num_contacts = max_num_contacts if max_num_contacts != -1 else len(mesh.faces) ** 2
-    request = fcl.CollisionRequest(
-        enable_contact=True, 
-        num_max_contacts=max_num_contacts
-    )
-    result = fcl.CollisionResult()
-    fcl.collide(mesh_obj, mesh_obj, request, result)
+    # 2. Find self-intersections
+    # findSelfCollidingTriangles returns a list of FaceFace pairs
+    # It internally ignores adjacent triangles (sharing vertices)
+    pairs = mrmeshpy.findSelfCollidingTriangles(mrmesh_obj)
 
     intersected_ids = set()
-
-    # 3. The "Zero Shared Vertices" Filter
-    for contact in result.contacts:
-        id1, id2 = contact.b1, contact.b2
-
-        if id1 == id2:
-            continue
-
-        # Get the vertex indices for both triangles
-        v1 = set(mesh.faces[id1])
-        v2 = set(mesh.faces[id2])
-
-        # INTERSECTION LOGIC:
-        # If they share 1 or more vertices, they are "touching" (neighbors).
-        # We only care if they share 0 vertices AND FCL says they collide.
-        if len(v1.intersection(v2)) == 0:
-            intersected_ids.add(id1)
-            intersected_ids.add(id2)
+    
+    # 3. Process all results
+    for pair in pairs:
+        intersected_ids.add(pair.aFace.get())
+        intersected_ids.add(pair.bFace.get())
 
     return list(intersected_ids)
 
