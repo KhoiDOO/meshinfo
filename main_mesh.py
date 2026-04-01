@@ -28,7 +28,6 @@ class MeshViewer:
         check_nonmanifold_vertices,
         check_geometry,
         check_topology,
-        max_num_contacts,
         verbose
     ):
         self.mode = DEFAULT_MODE
@@ -37,7 +36,6 @@ class MeshViewer:
         self.check_nonmanifold_vertices = check_nonmanifold_vertices
         self.check_geometry = check_geometry
         self.check_topology = check_topology
-        self.max_num_contacts = max_num_contacts
         self.verbose = verbose
         self.mesh_buffers: list[MeshBuffer] = []
         
@@ -213,7 +211,6 @@ class MeshViewer:
             check_components=self.check_components,
             check_geometry=self.check_geometry,
             check_topology=self.check_topology,
-            max_num_contacts=self.max_num_contacts,
             verbose=self.verbose
         )
 
@@ -589,7 +586,6 @@ if __name__ == "__main__":
     parser.add_argument("--nonmanifold", action="store_true", help="Check for non-manifold vertices (default: False)")
     parser.add_argument("--geometry", action="store_true", help="Check geometric properties (default: False)")
     parser.add_argument("--topology", action="store_true", help="Check topology properties (default: False)")
-    parser.add_argument("--max_contacts", type=int, default=DEFAULT_MAX_CONTACTS)
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -599,7 +595,6 @@ if __name__ == "__main__":
         check_nonmanifold_vertices=args.nonmanifold,
         check_geometry=args.geometry,
         check_topology=args.topology,
-        max_num_contacts=args.max_contacts,
         verbose=args.verbose
     )
     app.run()
