@@ -1,6 +1,5 @@
 import trimesh
 import numpy as np
-import fcl
 from colorama import Fore, Style, init
 
 from ..constants import FORMAT_LABEL_WIDTH, FORMAT_PRECISION_COORD
