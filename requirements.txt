@@ -47,7 +47,7 @@ Pygments==2.19.2
 PyOpenGL==3.1.10
 PyOpenGL-accelerate==3.1.10
 pyrr==0.10.3
-python-fcl==0.7.0.10
+meshlib==2.1.0.post1
 referencing==0.37.0
 requests==2.32.5
 retrying==1.4.2
