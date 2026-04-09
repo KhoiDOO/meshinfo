@@ -19,24 +19,19 @@ This project provides two complementary visualization applications for 3D data r
 
 ### Setup
 
-**Platform-Specific Environment Setup:**
-
+**Running with Repo**
 ```bash
-# For macOS
-conda env create -f env_yaml/mac_env.yml
-conda activate meshviewer
-
-# For Windows
-conda env create -f env_yaml/win_env.yml
-conda activate meshviewer
+git clone https://github.com/KhoiDOO/meshinfo.git
+cd meshinfo
+python main_mesh.py -h
 ```
 
-**Or install dependencies manually:**
+**Install dependencies manually:**
 ```bash
 pip install glfw PyOpenGL numpy pyrr pillow trimesh python-fcl colorama
 ```
 
-**Install Python Package:**
+**Install as Python Package:**
 ```bash
 pip install git+https://github.com/KhoiDOO/meshinfo.git
 ```
@@ -61,16 +56,35 @@ Enable additional analysis flags:
 ```bash
 python main_mesh.py --components --geometry --topology
 ```
-Control contact sampling and verbose output:
-```bash
-python main_mesh.py --max_contacts 1000 --verbose
-```
 
 ### Point Cloud Viewer
 ```bash
 python main_pc.py
 # Press O to open a point cloud file
 # See docs/POINT_CLOUD_VIEWER.md for full documentation
+```
+
+### Mesh Anlysis
+In case you want to just analyze your mesh w/o viewing it, we provide APIs to do.
+First install as a Python package, then
+```python
+from meshinfo import MeshInfo
+
+mesh_path = "your_mesh_file"
+filename = os.path.basename(mesh_path).split(".")[0]
+mesh = trimesh.load()
+mesh_info = MeshInfo(
+    mesh,
+    check_intersection=True,
+    check_components=True,
+    check_nonmanifold_vertices=True,
+    check_geometry=True,
+    check_topology=True,
+    verbose=True
+)
+
+mesh_stat_path = os.path.join(test_dir, f"{filename}_stat.json")
+mesh_dict = mesh_info.to_dict(nested=True)
 ```
 
 ## Features at a Glance
