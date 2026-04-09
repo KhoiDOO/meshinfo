@@ -37,7 +37,7 @@ numpy==2.0.2
 open3d==0.19.0
 packaging @ file:///C:/miniconda3/conda-bld/packaging_1761049101700/work
 parso==0.8.6
-pillow==12.1.1
+pillow==11.3.0
 platformdirs==4.7.0
 plotly==6.5.2
 prompt_toolkit==3.0.52
