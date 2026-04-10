@@ -15,7 +15,7 @@ from PIL import Image
 from meshinfo.utils.io import load_mesh
 from meshinfo.utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
 from meshinfo.analysis.mesh import MeshInfo
-from meshinfo.buffer.mesh_buffer import MeshBuffer
+from meshinfo.buffer.buffer import MeshBuffer
 from meshinfo.utils.io import normalize_vertices
 
 from meshinfo.constants import *

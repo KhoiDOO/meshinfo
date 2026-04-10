@@ -5,7 +5,7 @@ Full-featured 3D mesh visualization and topology analysis tool built with OpenGL
 ## Quick Start
 
 ```bash
-python main_mesh.py
+python main.py
 ```
 
 Then press **O** to open a mesh file.

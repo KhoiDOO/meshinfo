@@ -8,7 +8,7 @@ This project provides two complementary visualization applications for 3D data r
 
 | Application | Purpose | Formats | Use Cases |
 |---|---|---|---|
-| **`main_mesh.py`** (Mesh Viewer) | Full topology analysis and mesh visualization | OBJ, STL, PLY, GLB, OFF | Mesh validation, defect detection, multi-mesh comparison |
+| **`main.py`** (Mesh Viewer) | Full topology analysis and mesh visualization | OBJ, STL, PLY, GLB, OFF | Mesh validation, defect detection, multi-mesh comparison |
 | **`main_pc.py`** (Point Cloud Viewer) | Large-scale point cloud visualization | XYZ | LiDAR analysis, point cloud inspection, multi-cloud comparison |
 
 ## Installation
@@ -23,7 +23,7 @@ This project provides two complementary visualization applications for 3D data r
 ```bash
 git clone https://github.com/KhoiDOO/meshinfo.git
 cd meshinfo
-python main_mesh.py -h
+python main.py -h
 ```
 
 **Install dependencies manually:**
@@ -40,21 +40,21 @@ pip install git+https://github.com/KhoiDOO/meshinfo.git
 
 ### Mesh Viewer
 ```bash
-python main_mesh.py
+python main.py
 # Press O to open a mesh file
-# See docs/MESH_VIEWER.md for full documentation
+# See docs/VIEWER.md for full documentation
 ```
 Enable mesh intersection checking (can be expensive on large meshes):
 ```bash
-python main_mesh.py --intersect
+python main.py --intersect
 ```
 Enable non-manifold vertex checking:
 ```bash
-python main_mesh.py --nonmanifold
+python main.py --nonmanifold
 ```
 Enable additional analysis flags:
 ```bash
-python main_mesh.py --components --geometry --topology
+python main.py --components --geometry --topology
 ```
 
 ### Point Cloud Viewer
@@ -89,7 +89,7 @@ mesh_dict = mesh_info.to_dict(nested=True)
 
 ## Features at a Glance
 
-### Mesh Viewer (main_mesh.py)
+### Mesh Viewer (main.py)
 - ✅ Multi-mesh loading with automatic grid layout
 - ✅ Topology analysis: self-intersections, non-manifold detection
 - ✅ Visualization: face/vertex normals, point clouds, wireframe overlays
@@ -107,7 +107,7 @@ mesh_dict = mesh_info.to_dict(nested=True)
 
 Detailed documentation for each application:
 
-- **[Mesh Viewer Documentation](docs/MESH_VIEWER.md)** - Full guide for `main_mesh.py`
+- **[Mesh Viewer Documentation](docs/MESH_VIEWER.md)** - Full guide for `main.py`
   - Mesh topology analysis features
   - Keyboard controls and usage workflow
   - Supported formats and sample meshes
