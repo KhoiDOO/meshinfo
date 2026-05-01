@@ -2,8 +2,7 @@ import os
 import argparse
 
 import glfw
-from OpenGL.GL import *
-from OpenGL.GL.shaders import compileProgram, compileShader
+import moderngl
 
 import numpy as np
 from pyrr import Matrix44
@@ -94,7 +93,7 @@ class MeshViewer:
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, GL_TRUE)
+        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, True)
 
         self.window = glfw.create_window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, None, None)
         if not self.window:
@@ -102,24 +101,16 @@ class MeshViewer:
             raise Exception("GLFW window could not be created!")
 
         glfw.make_context_current(self.window)
-        glEnable(GL_DEPTH_TEST)
         
-        # Create and bind a VAO before shader compilation (required for macOS Core Profile)
-        dummy_vao = glGenVertexArrays(1)
-        glBindVertexArray(dummy_vao)
+        # Create ModernGL context
+        self.ctx = moderngl.create_context()
+        self.ctx.enable(moderngl.DEPTH_TEST)
+        self.ctx.enable(moderngl.PROGRAM_POINT_SIZE)
         
-        self.shader = compileProgram(
-            compileShader(VERTEX_SHADER, GL_VERTEX_SHADER),
-            compileShader(FRAGMENT_SHADER, GL_FRAGMENT_SHADER)
+        self.shader = self.ctx.program(
+            vertex_shader=VERTEX_SHADER,
+            fragment_shader=FRAGMENT_SHADER
         )
-        
-        # Enable programmatically set point sizes
-        glEnable(GL_PROGRAM_POINT_SIZE)
-
-        self.mvp_loc = glGetUniformLocation(self.shader, "mvp")
-        self.override_loc = glGetUniformLocation(self.shader, "overrideColor")
-        self.use_override_loc = glGetUniformLocation(self.shader, "useOverride")
-        self.point_size_loc = glGetUniformLocation(self.shader, "pointSize")
 
     def open_file_dialog(self, renew_buffers=True):
         file_paths = show_open_file_dialog(
@@ -130,22 +121,22 @@ class MeshViewer:
 
         if file_paths:
             if renew_buffers:
+                for buffer in self.mesh_buffers:
+                    buffer.release()
                 self.mesh_buffers = []
             
             self.load_mesh(file_paths)
     
     def capture_screenshot(self):
         """Capture the mesh area and save it."""
-        width, height = glfw.get_window_size(self.window)
+        width, height = glfw.get_framebuffer_size(self.window)
         
-        # Read full framebuffer
-        glReadBuffer(GL_FRONT)
-        pixels = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
+        # Read full framebuffer using ModernGL
+        pixels = self.ctx.screen.read(components=3)
         
         # Convert to PIL Image and flip vertically
-        image_data = np.frombuffer(pixels, dtype=np.uint8).reshape(height, width, 3)
-        image_data = np.flipud(image_data)
-        img = Image.fromarray(image_data, 'RGB')
+        img = Image.frombytes('RGB', (width, height), pixels)
+        img = img.transpose(Image.FLIP_TOP_BOTTOM)
         
         # Autocrop to remove empty space (black background)
         bbox = img.getbbox()
@@ -229,13 +220,14 @@ class MeshViewer:
         points, face_idx = mesh.sample(POINT_CLOUD_SAMPLE_COUNT, return_index=True)
         point_normals = mesh.face_normals[face_idx]
 
-        mesh_buffer = MeshBuffer()
+        mesh_buffer = MeshBuffer(self.ctx)
         mesh_buffer.update_from_mesh(
             mesh,
             mesh_info,
             normal_length,
             points,
             point_normals,
+            self.shader
         )
         self.mesh_buffers.append(mesh_buffer)
 
@@ -428,10 +420,11 @@ class MeshViewer:
             self.camera_height = max(CAMERA_HEIGHT_MIN, self.camera_height - height_step)
     
     def render_mesh(self):
-        glUseProgram(self.shader)
         colors_scheme = self.get_color_scheme()
+        width, height = glfw.get_framebuffer_size(self.window)
+        self.ctx.viewport = (0, 0, width, height)
 
-        proj = Matrix44.perspective_projection(CAMERA_FOV, WINDOW_WIDTH/WINDOW_HEIGHT, CAMERA_NEAR_PLANE, CAMERA_FAR_PLANE)
+        proj = Matrix44.perspective_projection(CAMERA_FOV, width/height, CAMERA_NEAR_PLANE, CAMERA_FAR_PLANE)
         
         # Calculate camera position (horizontal orbit only)
         if self.camera_rotating:
@@ -456,120 +449,97 @@ class MeshViewer:
                 * Matrix44.from_scale([self.object_scale, self.object_scale, self.object_scale])
             )
             mvp = proj * view * model
-            glUniformMatrix4fv(self.mvp_loc, 1, GL_FALSE, mvp)
+            self.shader['mvp'].write(mvp.astype('f4').tobytes())
 
             # --- DRAW PASS 1: Main Mesh ---
-            if buffer.main_index_count > 0:
-                glBindVertexArray(buffer.main_vao)
-                glUniform1i(self.use_override_loc, True)
-                glUniform3f(self.override_loc, *colors_scheme['mesh'])
+            if buffer.main_vao:
+                self.shader['overrideColor'].value = colors_scheme['mesh']
 
                 if self.mode == MODE_SOLID or self.mode == MODE_BOTH:
-                    # Add offset to push solid faces away from lines/highlighter
-                    glEnable(GL_POLYGON_OFFSET_FILL)
-                    glPolygonOffset(POLYGON_OFFSET_FACTOR, POLYGON_OFFSET_UNITS)
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-                    glDrawElements(GL_TRIANGLES, buffer.main_index_count, GL_UNSIGNED_INT, None)
-                    glDisable(GL_POLYGON_OFFSET_FILL)
+                    # ModernGL handles polygon offset via ctx.polygon_offset
+                    self.ctx.polygon_offset = (POLYGON_OFFSET_FACTOR, POLYGON_OFFSET_UNITS)
+                    self.ctx.wireframe = False
+                    buffer.main_vao.render(moderngl.TRIANGLES)
+                    self.ctx.polygon_offset = (0, 0)
 
                 if self.mode == MODE_WIREFRAME or self.mode == MODE_BOTH:
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-                    glUniform1i(self.use_override_loc, True)
-                    glUniform3f(self.override_loc, *colors_scheme['wireframe'])
-                    glDrawElements(GL_TRIANGLES, buffer.main_index_count, GL_UNSIGNED_INT, None)
+                    self.ctx.wireframe = True
+                    self.shader['overrideColor'].value = colors_scheme['wireframe']
+                    buffer.main_vao.render(moderngl.TRIANGLES)
+                    self.ctx.wireframe = False
 
             # --- DRAW PASS 2: Highlighted Part ---
-            if self.show_intersected and buffer.intersected_index_count > 0:
-                glBindVertexArray(buffer.intersected_vao)
+            if self.show_intersected and buffer.intersected_vao:
+                self.shader['overrideColor'].value = colors_scheme['intersected']
 
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-                glUniform1i(self.use_override_loc, True)
-                glUniform3f(self.override_loc, *colors_scheme['intersected'])
+                self.ctx.polygon_offset = (POLYGON_OFFSET_FACTOR, POLYGON_OFFSET_UNITS)
+                self.ctx.wireframe = False
+                buffer.intersected_vao.render(moderngl.TRIANGLES)
+                self.ctx.polygon_offset = (0, 0)
 
-                glEnable(GL_POLYGON_OFFSET_FILL)
-                glPolygonOffset(POLYGON_OFFSET_FACTOR, POLYGON_OFFSET_UNITS)
-                glDrawElements(GL_TRIANGLES, buffer.intersected_index_count, GL_UNSIGNED_INT, None)
-                glDisable(GL_POLYGON_OFFSET_FILL)
-
-                # 2. Wireframe Outline for Highlight
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-                glUniform1i(self.use_override_loc, True)  # Keep override on for outline color
-                glUniform3f(self.override_loc, *colors_scheme['wireframe_highlight'])
-                glDrawElements(GL_TRIANGLES, buffer.intersected_index_count, GL_UNSIGNED_INT, None)
+                # Wireframe Outline for Highlight
+                self.ctx.wireframe = True
+                self.shader['overrideColor'].value = colors_scheme['wireframe_highlight']
+                buffer.intersected_vao.render(moderngl.TRIANGLES)
+                self.ctx.wireframe = False
 
             # --- DRAW PASS 3: Normals ---
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-            glUniform1i(self.use_override_loc, True)
+            if self.show_face_normals and buffer.face_normals_vao:
+                self.shader['overrideColor'].value = colors_scheme['face_normals']
+                buffer.face_normals_vao.render(moderngl.LINES)
 
-            if self.show_face_normals and buffer.face_normals_count > 0:
-                glBindVertexArray(buffer.face_normals_vao)
-                glUniform3f(self.override_loc, *colors_scheme['face_normals'])
-                glDrawArrays(GL_LINES, 0, buffer.face_normals_count)
+            if self.show_vertex_normals and buffer.vertex_normals_vao:
+                self.shader['overrideColor'].value = colors_scheme['vertex_normals']
+                buffer.vertex_normals_vao.render(moderngl.LINES)
 
-            if self.show_vertex_normals and buffer.vertex_normals_count > 0:
-                glBindVertexArray(buffer.vertex_normals_vao)
-                glUniform3f(self.override_loc, *colors_scheme['vertex_normals'])
-                glDrawArrays(GL_LINES, 0, buffer.vertex_normals_count)
+            if self.show_point_cloud and buffer.point_cloud_vao:
+                self.shader['overrideColor'].value = colors_scheme['point_cloud']
+                self.shader['pointSize'].value = POINT_CLOUD_POINT_SIZE
+                buffer.point_cloud_vao.render(moderngl.POINTS)
 
-            if self.show_point_cloud and buffer.point_cloud_count > 0:
-                glBindVertexArray(buffer.point_cloud_vao)
-                glUniform3f(self.override_loc, *colors_scheme['point_cloud'])
-                glUniform1f(self.point_size_loc, POINT_CLOUD_POINT_SIZE)
-                glDrawArrays(GL_POINTS, 0, buffer.point_cloud_count)
-
-            if self.show_point_cloud_normals and buffer.point_cloud_normals_count > 0:
-                glBindVertexArray(buffer.point_cloud_normals_vao)
-                glUniform3f(self.override_loc, *colors_scheme['point_cloud_normals'])
-                glDrawArrays(GL_LINES, 0, buffer.point_cloud_normals_count)
+            if self.show_point_cloud_normals and buffer.point_cloud_normals_vao:
+                self.shader['overrideColor'].value = colors_scheme['point_cloud_normals']
+                buffer.point_cloud_normals_vao.render(moderngl.LINES)
 
             if self.show_edges_by_type:
-                # Render edges by type on top without depth testing
-                glDisable(GL_DEPTH_TEST)
+                self.ctx.disable(moderngl.DEPTH_TEST)
                 
                 # Internal Edges
-                if buffer.internal_edges_count > 0:
-                    glBindVertexArray(buffer.internal_edges_vao)
-                    glUniform3f(self.override_loc, *colors_scheme['internal_edges'])
-                    glDrawArrays(GL_LINES, 0, buffer.internal_edges_count)
+                if buffer.internal_edges_vao:
+                    self.shader['overrideColor'].value = colors_scheme['internal_edges']
+                    buffer.internal_edges_vao.render(moderngl.LINES)
                 
                 # Boundary Edges
-                if buffer.boundary_edges_count > 0:
-                    glBindVertexArray(buffer.boundary_edges_vao)
-                    glUniform3f(self.override_loc, *colors_scheme['boundary_edges'])
-                    glDrawArrays(GL_LINES, 0, buffer.boundary_edges_count)
+                if buffer.boundary_edges_vao:
+                    self.shader['overrideColor'].value = colors_scheme['boundary_edges']
+                    buffer.boundary_edges_vao.render(moderngl.LINES)
                 
                 # Non-manifold Edges
-                if buffer.nonmanifold_edges_count > 0:
-                    glBindVertexArray(buffer.nonmanifold_edges_vao)
-                    glUniform3f(self.override_loc, *colors_scheme['nonmanifold_edges'])
-                    glDrawArrays(GL_LINES, 0, buffer.nonmanifold_edges_count)
+                if buffer.nonmanifold_edges_vao:
+                    self.shader['overrideColor'].value = colors_scheme['nonmanifold_edges']
+                    buffer.nonmanifold_edges_vao.render(moderngl.LINES)
                 
-                glEnable(GL_DEPTH_TEST)
+                self.ctx.enable(moderngl.DEPTH_TEST)
 
-            if self.show_nonmanifold_edges and buffer.nonmanifold_edges_count > 0:
-                # Render non-manifold edges on top without depth testing
-                glDisable(GL_DEPTH_TEST)
-                glBindVertexArray(buffer.nonmanifold_edges_vao)
-                glUniform3f(self.override_loc, *colors_scheme['nonmanifold_edges'])
-                glDrawArrays(GL_LINES, 0, buffer.nonmanifold_edges_count)
-                glEnable(GL_DEPTH_TEST)
+            if self.show_nonmanifold_edges and buffer.nonmanifold_edges_vao:
+                self.ctx.disable(moderngl.DEPTH_TEST)
+                self.shader['overrideColor'].value = colors_scheme['nonmanifold_edges']
+                buffer.nonmanifold_edges_vao.render(moderngl.LINES)
+                self.ctx.enable(moderngl.DEPTH_TEST)
 
-            if self.show_nonmanifold_vertices and buffer.nonmanifold_vertices_count > 0:
-                # Render non-manifold vertices as points on top
-                glDisable(GL_DEPTH_TEST)
-                glBindVertexArray(buffer.nonmanifold_vertices_vao)
-                glUniform3f(self.override_loc, *colors_scheme['nonmanifold_vertices'])
-                glUniform1f(self.point_size_loc, NONMANIFOLD_VERTEX_POINT_SIZE)
-                glDrawArrays(GL_POINTS, 0, buffer.nonmanifold_vertices_count)
-                glEnable(GL_DEPTH_TEST)
+            if self.show_nonmanifold_vertices and buffer.nonmanifold_vertices_vao:
+                self.ctx.disable(moderngl.DEPTH_TEST)
+                self.shader['overrideColor'].value = colors_scheme['nonmanifold_vertices']
+                self.shader['pointSize'].value = NONMANIFOLD_VERTEX_POINT_SIZE
+                buffer.nonmanifold_vertices_vao.render(moderngl.POINTS)
+                self.ctx.enable(moderngl.DEPTH_TEST)
 
     def run(self):
         while not glfw.window_should_close(self.window):
             self.handle_input()
             
             colors_scheme = self.get_color_scheme()
-            glClearColor(*colors_scheme['background'])
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            self.ctx.clear(*colors_scheme['background'])
             
             if self.mesh_buffers:
                 self.render_mesh()
