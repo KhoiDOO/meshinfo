@@ -296,13 +296,32 @@ class MeshInfo:
             "area": self.area,
             "volume": self.volume,
             "sphericity": self.sphericity,
-            "bounds": self.bounds_list,
-            "center_mass": self.center_mass_list,
-            "centroid": self.centroid_list,
-            "extents": self.extents_list,
+            "min_x": self.bounds[0][0],
+            "max_x": self.bounds[1][0],
+            "min_y": self.bounds[0][1],
+            "max_y": self.bounds[1][1],
+            "min_z": self.bounds[0][2],
+            "max_z": self.bounds[1][2],
+            "extents_x": self.extents[0],
+            "extents_y": self.extents[1],
+            "extents_z": self.extents[2],
         } if check_geometry else {
             "INFO": CHECK_GEOMETRY_SUGGESTION_PROMPT
         }
+
+        if check_geometry:
+            if self.center_mass is not None:
+                self.analysis.update({
+                    "center_mass_x": self.center_mass[0],
+                    "center_mass_y": self.center_mass[1],
+                    "center_mass_z": self.center_mass[2],
+                })
+            if mesh.centroid is not None:
+                self.analysis.update({
+                    "centroid_x": mesh.centroid[0],
+                    "centroid_y": mesh.centroid[1],
+                    "centroid_z": mesh.centroid[2],
+                })
 
         self.vertices_info = {
             "#coplanar_vertices": self.num_coplanar_vertices,
