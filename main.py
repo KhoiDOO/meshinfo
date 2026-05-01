@@ -9,6 +9,9 @@ from pyrr import Matrix44
 import math
 import trimesh
 
+import imgui
+from imgui.integrations.glfw import GlfwRenderer
+
 from PIL import Image
 
 from meshinfo.utils.io import load_mesh
@@ -111,6 +114,14 @@ class MeshViewer:
             vertex_shader=VERTEX_SHADER,
             fragment_shader=FRAGMENT_SHADER
         )
+
+        # ImGui setup
+        imgui.create_context()
+        imgui.get_io().config_windows_resize_from_edges = True
+        self.imgui_backend = GlfwRenderer(self.window)
+        self.show_ui = True
+        self.ui_sidebar_width = UI_SIDEBAR_WIDTH
+        self.ui_sidebar_height = UI_SIDEBAR_HEIGHT
 
     def open_file_dialog(self, renew_buffers=True):
         file_paths = show_open_file_dialog(
@@ -231,7 +242,8 @@ class MeshViewer:
         )
         self.mesh_buffers.append(mesh_buffer)
 
-        print(mesh_info)
+        if self.verbose:
+            print(mesh_info)
 
     def layout_meshes(self):
         if not self.mesh_buffers:
@@ -263,6 +275,11 @@ class MeshViewer:
             buffer.position = np.array([grid_x - center[0], -center[1], grid_z - center[2]], dtype=np.float32)
     
     def handle_input(self):
+        # Handle 'G' for toggling UI
+        g_state = glfw.get_key(self.window, glfw.KEY_G)
+        if g_state == glfw.PRESS and getattr(self, 'last_g_state', glfw.RELEASE) == glfw.RELEASE:
+            self.show_ui = not self.show_ui
+        self.last_g_state = g_state
 
         # Handle 'I' for toggling intersected faces
         i_state = glfw.get_key(self.window, glfw.KEY_I)
@@ -418,7 +435,142 @@ class MeshViewer:
             self.camera_height = min(CAMERA_HEIGHT_MAX, self.camera_height + height_step)
         if glfw.get_key(self.window, glfw.KEY_DOWN) == glfw.PRESS:
             self.camera_height = max(CAMERA_HEIGHT_MIN, self.camera_height - height_step)
-    
+
+    def render_ui(self):
+        if not self.show_ui:
+            return
+
+        # Set initial size on first run, but allow full manual control thereafter
+        imgui.set_next_window_size(self.ui_sidebar_width, self.ui_sidebar_height, imgui.FIRST_USE_EVER)
+        imgui.set_next_window_bg_alpha(UI_ALPHA)
+
+        # Removed WINDOW_NO_MOVE and fixed height to allow full window coverage
+        expanded, self.show_ui = imgui.begin("Analysis Dashboard", self.show_ui)
+        if not expanded:
+            imgui.end()
+            return
+
+        if imgui.begin_tab_bar("MainTabs"):
+            if imgui.begin_tab_item("Details")[0]:
+                if not self.mesh_buffers:
+                    imgui.text("No meshes loaded. Press 'O' to open.")
+                else:
+                    def render_comparison_table(title, metrics_dict_name):
+                        expanded, _ = imgui.collapsing_header(title, imgui.TREE_NODE_DEFAULT_OPEN)
+                        if expanded:
+                            all_keys = []
+                            for buffer in self.mesh_buffers:
+                                m_dict = getattr(buffer.mesh_info, metrics_dict_name)
+                                if isinstance(m_dict, dict):
+                                    for k in m_dict.keys():
+                                        if k not in all_keys and k != "INFO":
+                                            all_keys.append(k)
+                            
+                            if not all_keys:
+                                info_msg = getattr(self.mesh_buffers[0].mesh_info, metrics_dict_name).get("INFO", "No data available.")
+                                imgui.text_wrapped(info_msg)
+                                return
+
+                            table_flags = imgui.TABLE_BORDERS | imgui.TABLE_ROW_BACKGROUND | imgui.TABLE_SCROLL_X | imgui.TABLE_RESIZABLE | imgui.TABLE_HIDEABLE
+                            if imgui.begin_table(f"Table_{metrics_dict_name}", len(self.mesh_buffers) + 1, table_flags):
+                                # Fixed width for labels, stretching width for filenames
+                                imgui.table_setup_column("Metric", imgui.TABLE_COLUMN_WIDTH_FIXED, 180)
+                                for buffer in self.mesh_buffers:
+                                    imgui.table_setup_column(buffer.mesh_info.name, imgui.TABLE_COLUMN_WIDTH_STRETCH)
+                                imgui.table_headers_row()
+
+                                for key in all_keys:
+                                    imgui.table_next_row()
+                                    imgui.table_next_column()
+                                    imgui.text(key)
+                                    for buffer in self.mesh_buffers:
+                                        imgui.table_next_column()
+                                        val = getattr(buffer.mesh_info, metrics_dict_name).get(key)
+                                        
+                                        if val is None:
+                                            imgui.text("N/A")
+                                        elif isinstance(val, bool):
+                                            imgui.text("Yes" if val else "No")
+                                        elif isinstance(val, (int, np.integer)):
+                                            imgui.text(f"{val:,}")
+                                        elif isinstance(val, (float, np.floating)):
+                                            imgui.text(f"{val:.4f}")
+                                        elif isinstance(val, (list, np.ndarray)):
+                                            v_str = str(val).replace("\n", "")
+                                            imgui.text(v_str if len(v_str) < 50 else v_str[:47] + "...")
+                                            if imgui.is_item_hovered():
+                                                imgui.set_tooltip(v_str)
+                                        elif isinstance(val, dict):
+                                            imgui.text(f"{len(val)} items")
+                                            if imgui.is_item_hovered():
+                                                tooltip = "\n".join([f"{k}: {v}" for k, v in val.items()])
+                                                imgui.set_tooltip(tooltip)
+                                        else:
+                                            imgui.text(str(val))
+                                imgui.end_table()
+
+                    render_comparison_table("General Statistics", "stats")
+                    render_comparison_table("Topological Properties", "properties")
+                    render_comparison_table("Geometry", "analysis")
+                    render_comparison_table("Vertices Information", "vertices_info")
+                    render_comparison_table("Edges Information", "edges_info")
+                    render_comparison_table("Faces Information", "faces_info")
+                    render_comparison_table("Connected Components", "ccs_info")
+
+                    # Special section for histograms
+                    expanded_dist, _ = imgui.collapsing_header("Distributions")
+                    if expanded_dist:
+                        for i, buffer in enumerate(self.mesh_buffers):
+                            info = buffer.mesh_info
+                            if imgui.tree_node(f"{info.name} distributions##{i}"):
+                                if info.face_angles_deciles:
+                                    imgui.text("Face Angles (deg)")
+                                    vals = np.array(list(info.face_angles_deciles.values()), dtype=np.float32)
+                                    imgui.plot_lines("##angles", vals, scale_min=0, scale_max=180, graph_size=(0, 60))
+                                
+                                if info.face_areas_deciles:
+                                    imgui.text("Face Areas")
+                                    vals = np.array(list(info.face_areas_deciles.values()), dtype=np.float32)
+                                    max_v = max(vals) if len(vals) > 0 else 1.0
+                                    imgui.plot_lines("##areas", vals, scale_min=0, scale_max=max_v * 1.1, graph_size=(0, 60))
+                                
+                                if info.face_adjacency_angles_deciles:
+                                    imgui.text("Dihedral Angles (deg)")
+                                    vals = np.array(list(info.face_adjacency_angles_deciles.values()), dtype=np.float32)
+                                    imgui.plot_lines("##dihedral", vals, scale_min=0, scale_max=180, graph_size=(0, 60))
+                                imgui.tree_pop()
+                imgui.end_tab_item()
+
+            if imgui.begin_tab_item("Controls")[0]:
+                imgui.text("Visualization Toggles:")
+                _, self.show_intersected = imgui.checkbox("Show Intersected Faces", self.show_intersected)
+                _, self.show_face_normals = imgui.checkbox("Show Face Normals", self.show_face_normals)
+                _, self.show_vertex_normals = imgui.checkbox("Show Vertex Normals", self.show_vertex_normals)
+                _, self.show_point_cloud = imgui.checkbox("Show Point Cloud", self.show_point_cloud)
+                _, self.show_point_cloud_normals = imgui.checkbox("Show Point Cloud Normals", self.show_point_cloud_normals)
+                _, self.show_edges_by_type = imgui.checkbox("Show Edges By Type", self.show_edges_by_type)
+                _, self.show_nonmanifold_vertices = imgui.checkbox("Show Non-manifold Vertices", self.show_nonmanifold_vertices)
+                
+                imgui.separator()
+                imgui.text("Camera & Object:")
+                _, self.camera_rotating = imgui.checkbox("Auto Rotate Camera", self.camera_rotating)
+                _, self.object_scale = imgui.slider_float("Object Scale", self.object_scale, OBJECT_SCALE_MIN, OBJECT_SCALE_MAX)
+                
+                if imgui.button("Reset View"):
+                    self.camera_rotating = DEFAULT_CAMERA_ROTATING
+                    self.camera_angle = DEFAULT_CAMERA_ANGLE
+                    self.camera_vertical_angle = DEFAULT_CAMERA_VERTICAL_ANGLE
+                    self.camera_distance = DEFAULT_CAMERA_DISTANCE
+                    self.camera_height = DEFAULT_CAMERA_HEIGHT
+                
+                imgui.end_tab_item()
+
+            imgui.end_tab_bar()
+
+        # Update sidebar width to capture user resizing
+        self.ui_sidebar_width = imgui.get_window_width()
+        imgui.end()
+
     def render_mesh(self):
         colors_scheme = self.get_color_scheme()
         width, height = glfw.get_framebuffer_size(self.window)
@@ -536,17 +688,26 @@ class MeshViewer:
 
     def run(self):
         while not glfw.window_should_close(self.window):
+            glfw.poll_events()
+            self.imgui_backend.process_inputs()
             self.handle_input()
             
+            imgui.new_frame()
+            self.render_ui()
+            imgui.end_frame()
+
             colors_scheme = self.get_color_scheme()
             self.ctx.clear(*colors_scheme['background'])
             
             if self.mesh_buffers:
                 self.render_mesh()
 
-            glfw.swap_buffers(self.window)
-            glfw.poll_events()
+            imgui.render()
+            self.imgui_backend.render(imgui.get_draw_data())
 
+            glfw.swap_buffers(self.window)
+
+        self.imgui_backend.shutdown()
         glfw.terminate()
 
 if __name__ == "__main__":
