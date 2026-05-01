@@ -63,15 +63,18 @@ Enable additional analysis flags:
 python main.py --components --geometry --topology
 ```
 
-### Mesh Anlysis
-In case you want to just analyze your mesh w/o viewing it, we provide APIs to do.
-First install as a Python package, then
+### Mesh Analysis API
+In case you want to just analyze your mesh w/o viewing it, we provide a clean API.
+
 ```python
+import trimesh
+import os
 from meshinfo import MeshInfo
 
-mesh_path = "your_mesh_file"
+mesh_path = "your_mesh_file.obj"
 filename = os.path.basename(mesh_path).split(".")[0]
-mesh = trimesh.load()
+mesh = trimesh.load(mesh_path, process=False)
+
 mesh_info = MeshInfo(
     mesh,
     name=filename,
@@ -83,55 +86,60 @@ mesh_info = MeshInfo(
     verbose=True
 )
 
+# Export all metrics as a dictionary
 mesh_dict = mesh_info.to_dict(nested=True)
 ```
 
 ## Features at a Glance
 
-### Mesh Viewer (main.py)
-- ✅ **Interactive Analysis Dashboard**: Real-time side panel (Press 'G' to toggle)
-- ✅ **Comparison Table**: Side-by-side metrics for multiple meshes
-- ✅ Multi-mesh loading with automatic grid layout
-- ✅ Topology analysis: self-intersections, non-manifold detection
-- ✅ Visualization: face/vertex normals, point clouds, wireframe overlays
-- ✅ Comprehensive mesh statistics in console and UI
-- ✅ Side-by-side mesh comparison
+### Mesh Viewer (`main.py`)
+- ✅ **Interactive Analysis Dashboard**: Real-time side panel (Press **G** to toggle).
+- ✅ **Comparison Table**: Side-by-side metrics for multiple meshes.
+- ✅ **Advanced Camera Calibration**: Adjust FOV, Focal Length (35mm equivalent), and Clipping Planes.
+- ✅ **Orbital Navigation**: Intuitive 3D rotation targeting the origin (Arrow keys).
+- ✅ **Dynamic Layouts**: Automatically arrange multiple meshes in **Grid** or **Line** modes.
+- ✅ **Topology Analysis**: Detect self-intersections, non-manifold edges/vertices, and genus.
+- ✅ **Visualization**: Face/vertex normals, point clouds, and high-DPI screenshot export.
 
-### Point Cloud Viewer (main_pc.py)
-- ✅ Multi-cloud loading with synchronized views
-- ✅ GPU-optimized rendering for millions of points
-- ✅ Support for colored point clouds (RGB)
-- ✅ Adaptive point sizing and camera controls
-- ✅ Multi-format support (XYZ, LAS, LAZ, PLY)
+### Point Cloud Viewer (`main_pc.py`)
+- ✅ Multi-cloud loading with synchronized views.
+- ✅ GPU-optimized rendering for millions of points.
+- ✅ Support for colored point clouds (RGB).
+- ✅ Adaptive point sizing and camera controls.
+- ✅ Multi-format support (XYZ, LAS, LAZ, PLY).
 
 ## Documentation
 
 Detailed documentation for each application:
 
-- **[Mesh Viewer Documentation](docs/MESH_VIEWER.md)** - Full guide for `main.py`
-  - Mesh topology analysis features
+- **[Mesh Viewer Documentation](docs/VIEWER.md)** - Full guide for `main.py`
+  - Camera calibration and navigation
   - Keyboard controls and usage workflow
-  - Supported formats and sample meshes
+  - Topology analysis algorithms
   - Performance optimization tips
 
 ## Sample Data
 
 Both applications include sample data for testing:
 
-- **Mesh Samples** (`samples`)
-  - Test meshes with known topology issues
-  - Good for validation and demonstration
-  - See [samples/README.md](samples/README.md)
+- **Mesh Samples** (`samples/mesh`)
+  - Test meshes with known topology issues (self-intersections, non-manifold edges).
+  - See [samples/mesh/README.md](samples/mesh/README.md).
 
-## Architecture
+## Acknowledgement
 
-### Technologies Used
-- **Rendering**: ModernGL (OpenGL 3.3 Core Profile) with GLSL shaders
-- **GUI**: ImGui (pyimgui) for the analysis dashboard
-- **Mesh Processing**: Trimesh library for geometry operations
-- **Collision Detection**: FCL (Flexible Collision Library) BVH
-- **Windowing**: GLFW for window management and input
-- **File I/O**: NumPy, Trimesh, Laspy (optional)
+This project is built upon several powerful open-source libraries:
+
+- **Rendering**: [ModernGL](https://github.com/moderngl/moderngl) (OpenGL 3.3 Core Profile)
+- **Geometry & Mesh Processing**: [Trimesh](https://github.com/mikedh/trimesh)
+- **Self-Intersection Detection**: [MeshLib](https://github.com/MeshInspector/MeshLib)
+- **GUI Framework**: [Dear ImGui](https://github.com/ocornut/imgui) (via [pyimgui](https://github.com/pyimgui/pyimgui))
+- **Window Management**: [GLFW](https://github.com/glfw/glfw) (via [pyglfw](https://github.com/FlorianRhiem/pyglfw))
+- **Numerical Computation**: [NumPy](https://github.com/numpy/numpy)
+- **Math Utilities**: [Pyrr](https://github.com/approxion/pyrr)
+- **Graph Theory**: [NetworkX](https://github.com/networkx/networkx) (for manifold analysis)
+- **Image Processing**: [Pillow](https://github.com/python-pillow/Pillow) (for screenshots)
+- **Terminal Styling**: [Colorama](https://github.com/tartley/colorama)
 
 ## License
 
