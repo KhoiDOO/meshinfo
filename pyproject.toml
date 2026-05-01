@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
   "colorama>=0.4.6",
   "glfw>=2.10.0",
+  "imgui>=2.0.0",
   "meshlib>=2.1.0.post1",
   "numpy>=2.0.2",
   "Pillow==11.3.0",
