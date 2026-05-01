@@ -28,6 +28,7 @@ jupyter_core==5.9.1
 jupyterlab_widgets==3.0.16
 MarkupSafe==3.0.3
 matplotlib-inline==0.2.1
+moderngl==5.10.0
 multipledispatch==1.0.0
 narwhals==2.16.0
 nbformat==5.10.4
@@ -44,8 +45,6 @@ prompt_toolkit==3.0.52
 pure_eval==0.2.3
 pyglfw==0.2.2
 Pygments==2.19.2
-PyOpenGL==3.1.10
-PyOpenGL-accelerate==3.1.10
 pyrr==0.10.3
 meshlib==2.1.0.post1
 referencing==0.37.0
