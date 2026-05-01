@@ -23,12 +23,13 @@ This project provides two complementary visualization applications for 3D data r
 ```bash
 git clone https://github.com/KhoiDOO/meshinfo.git
 cd meshinfo
-python main.py -h
 ```
 
-**Install dependencies manually:**
+**Create conda env**
 ```bash
-pip install glfw moderngl "imgui[glfw]" numpy pyrr pillow trimesh python-fcl colorama
+conda create -n meshviewer python=3.10
+conda activate meshviewer
+pip install .
 ```
 
 **Install as Python Package:**
@@ -57,13 +58,6 @@ Enable additional analysis flags:
 python main.py --components --geometry --topology
 ```
 
-### Point Cloud Viewer
-```bash
-python main_pc.py
-# Press O to open a point cloud file
-# See docs/POINT_CLOUD_VIEWER.md for full documentation
-```
-
 ### Mesh Anlysis
 In case you want to just analyze your mesh w/o viewing it, we provide APIs to do.
 First install as a Python package, then
@@ -75,6 +69,7 @@ filename = os.path.basename(mesh_path).split(".")[0]
 mesh = trimesh.load()
 mesh_info = MeshInfo(
     mesh,
+    name=filename,
     check_intersection=True,
     check_components=True,
     check_nonmanifold_vertices=True,
@@ -83,7 +78,6 @@ mesh_info = MeshInfo(
     verbose=True
 )
 
-mesh_stat_path = os.path.join(test_dir, f"{filename}_stat.json")
 mesh_dict = mesh_info.to_dict(nested=True)
 ```
 
@@ -115,25 +109,14 @@ Detailed documentation for each application:
   - Supported formats and sample meshes
   - Performance optimization tips
 
-- **[Point Cloud Viewer Documentation](docs/POINT_CLOUD_VIEWER.md)** - Full guide for `main_pc.py`
-  - Point cloud loading and visualization
-  - Keyboard controls and camera management
-  - Format specifications and examples
-  - Creating point cloud files from various sources
-
 ## Sample Data
 
 Both applications include sample data for testing:
 
-- **Mesh Samples** (`samples/mesh/`)
+- **Mesh Samples** (`samples`)
   - Test meshes with known topology issues
   - Good for validation and demonstration
-  - See [samples/mesh/README.md](samples/mesh/README.md)
-
-- **Point Cloud Samples** (`samples/pc/`)
-  - Example point clouds in XYZ format
-  - Ready to load and visualize
-  - See [samples/pc/README.md](samples/pc/README.md)
+  - See [samples/README.md](samples/README.md)
 
 ## Architecture
 
