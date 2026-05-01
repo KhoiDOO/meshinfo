@@ -76,6 +76,7 @@ class MeshViewer:
         self.object_scale = DEFAULT_OBJECT_SCALE
         self.object_scale_speed = DEFAULT_OBJECT_SCALE_SPEED
         self.mesh_layout_padding = MESH_LAYOUT_PADDING
+        self.layout_mode = "Grid"  # Options: "Grid", "Line"
 
         self.last_o_state = glfw.RELEASE
         self.last_tab_state = glfw.RELEASE
@@ -275,8 +276,14 @@ class MeshViewer:
             return
 
         count = len(self.mesh_buffers)
-        grid_cols = int(math.ceil(math.sqrt(count)))
-        grid_rows = int(math.ceil(count / grid_cols))
+        
+        # Determine grid dimensions
+        if self.layout_mode == "Grid":
+            grid_cols = int(math.ceil(math.sqrt(count)))
+            grid_rows = int(math.ceil(count / grid_cols))
+        else:  # "Line"
+            grid_cols = count
+            grid_rows = 1
 
         # Use original bounds for layout (unaffected by object scale)
         max_extent = 0.0
@@ -592,6 +599,12 @@ class MeshViewer:
                 imgui.text("Camera & Object:")
                 _, self.camera_rotating = imgui.checkbox("Auto Rotate Camera", self.camera_rotating)
                 _, self.object_scale = imgui.slider_float("Object Scale", self.object_scale, OBJECT_SCALE_MIN, OBJECT_SCALE_MAX)
+                
+                imgui.separator()
+                imgui.text("Layout Settings:")
+                if imgui.button(f"Mode: {self.layout_mode}"):
+                    self.layout_mode = "Line" if self.layout_mode == "Grid" else "Grid"
+                    self.layout_meshes()
                 
                 if imgui.button("Reset View"):
                     self.camera_rotating = DEFAULT_CAMERA_ROTATING
