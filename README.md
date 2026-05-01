@@ -1,6 +1,6 @@
 # Mesh Analysis and Visualization for Research
 
-A powerful 3D mesh and point cloud analysis and visualization toolkit built with OpenGL and Python. Load, inspect, and analyze 3D mesh and point cloud files with real-time rendering and comprehensive geometric analysis.
+A powerful 3D mesh and point cloud analysis and visualization toolkit built with ModernGL and Python. Load, inspect, and analyze 3D mesh and point cloud files with real-time rendering and comprehensive geometric analysis.
 
 ## Overview
 
@@ -28,7 +28,7 @@ python main.py -h
 
 **Install dependencies manually:**
 ```bash
-pip install glfw PyOpenGL numpy pyrr pillow trimesh python-fcl colorama
+pip install glfw moderngl numpy pyrr pillow trimesh python-fcl colorama
 ```
 
 **Install as Python Package:**
@@ -136,7 +136,7 @@ Both applications include sample data for testing:
 ## Architecture
 
 ### Technologies Used
-- **Rendering**: OpenGL 3.3 Core Profile with GLSL shaders
+- **Rendering**: ModernGL (OpenGL 3.3 Core Profile) with GLSL shaders
 - **Mesh Processing**: Trimesh library for geometry operations
 - **Collision Detection**: FCL (Flexible Collision Library) BVH
 - **GUI**: GLFW for window management and input
