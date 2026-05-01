@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meshinfo"
-version = "0.1.6"
+version = "0.1.7"
 description = "3D mesh and point cloud visualization toolkit with analysis utilities"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,7 +27,7 @@ dependencies = [
   "meshlib>=2.1.0.post1",
   "numpy>=2.0.2",
   "Pillow==11.3.0",
-  "PyOpenGL>=3.1.10",
+  "moderngl>=5.10.0",
   "pyrr>=0.10.3",
   "trimesh>=4.11.2"
 ]
