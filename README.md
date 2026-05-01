@@ -4,12 +4,17 @@ A powerful 3D mesh and point cloud analysis and visualization toolkit built with
 
 ## Overview
 
-This project provides two complementary visualization applications for 3D data research and analysis:
+### Diagnostic & Comparison
+| ![Analysis Dashboard](docs/dashboard.png) | ![Multi-mesh Comparison](docs/multiple_mesh.png) | ![Non-manifold Detection](docs/non_manifolde_vert_edge.png) |
+|:---:|:---:|:---:|
+| **Analysis Dashboard** | **Multi-mesh Comparison** | **Non-manifold Detection** |
 
-| Application | Purpose | Formats | Use Cases |
-|---|---|---|---|
-| **`main.py`** (Mesh Viewer) | Full topology analysis and mesh visualization | OBJ, STL, PLY, GLB, OFF | Mesh validation, defect detection, multi-mesh comparison |
-| **`main_pc.py`** (Point Cloud Viewer) | Large-scale point cloud visualization | XYZ | LiDAR analysis, point cloud inspection, multi-cloud comparison |
+### Visualization Modes
+| ![Solid & Wireframe](docs/solid_wireframe.png) | ![Self-intersection](docs/intersection.png) | ![Point Cloud](docs/pointcloud.png) |
+|:---:|:---:|:---:|
+| **Solid & Wireframe Modes** | **Self-intersection** | **Point Cloud** |
+| ![Face Normals](docs/faces_normal.png) | ![Vertex Normals](docs/vertices_normal.png) | ![Point Cloud Normals](docs/pointcloud_normal.png) |
+| **Face Normals** | **Vertex Normals** | **Point Cloud Normals** |
 
 ## Installation
 
