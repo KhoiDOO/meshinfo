@@ -28,7 +28,7 @@ python main.py -h
 
 **Install dependencies manually:**
 ```bash
-pip install glfw moderngl numpy pyrr pillow trimesh python-fcl colorama
+pip install glfw moderngl "imgui[glfw]" numpy pyrr pillow trimesh python-fcl colorama
 ```
 
 **Install as Python Package:**
@@ -90,10 +90,12 @@ mesh_dict = mesh_info.to_dict(nested=True)
 ## Features at a Glance
 
 ### Mesh Viewer (main.py)
+- ✅ **Interactive Analysis Dashboard**: Real-time side panel (Press 'G' to toggle)
+- ✅ **Comparison Table**: Side-by-side metrics for multiple meshes
 - ✅ Multi-mesh loading with automatic grid layout
 - ✅ Topology analysis: self-intersections, non-manifold detection
 - ✅ Visualization: face/vertex normals, point clouds, wireframe overlays
-- ✅ Comprehensive mesh statistics in console output
+- ✅ Comprehensive mesh statistics in console and UI
 - ✅ Side-by-side mesh comparison
 
 ### Point Cloud Viewer (main_pc.py)
@@ -137,9 +139,10 @@ Both applications include sample data for testing:
 
 ### Technologies Used
 - **Rendering**: ModernGL (OpenGL 3.3 Core Profile) with GLSL shaders
+- **GUI**: ImGui (pyimgui) for the analysis dashboard
 - **Mesh Processing**: Trimesh library for geometry operations
 - **Collision Detection**: FCL (Flexible Collision Library) BVH
-- **GUI**: GLFW for window management and input
+- **Windowing**: GLFW for window management and input
 - **File I/O**: NumPy, Trimesh, Laspy (optional)
 
 ## License
