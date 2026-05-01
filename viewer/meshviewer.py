@@ -52,6 +52,12 @@ class MeshViewer:
 
         self.color_theme = DEFAULT_COLOR_THEME
 
+        # Camera calibration
+        self.camera_fov = CAMERA_FOV
+        self.camera_near = CAMERA_NEAR_PLANE
+        self.camera_far = CAMERA_FAR_PLANE
+        self.sensor_width = 36.0  # mm (Full Frame equivalent)
+
         # Camera control
         self.camera_rotating = DEFAULT_CAMERA_ROTATING
         self.camera_angle = DEFAULT_CAMERA_ANGLE
@@ -140,13 +146,28 @@ class MeshViewer:
     
     def capture_screenshot(self):
         """Capture the mesh area and save it."""
-        width, height = glfw.get_framebuffer_size(self.window)
+        # Ensure viewport is set to current framebuffer size before reading
+        fb_width, fb_height = glfw.get_framebuffer_size(self.window)
+        self.ctx.screen.viewport = (0, 0, fb_width, fb_height)
         
-        # Read full framebuffer using ModernGL
-        pixels = self.ctx.screen.read(components=3)
+        # Read full framebuffer using ModernGL with explicit alignment
+        try:
+            # Explicitly specifying viewport to match fb_width/fb_height
+            pixels = self.ctx.screen.read(viewport=(0, 0, fb_width, fb_height), components=3, alignment=1)
+        except Exception as e:
+            print(f"Failed to read framebuffer: {e}")
+            return
         
+        # Verify data length to prevent PIL error
+        expected_len = fb_width * fb_height * 3
+        if len(pixels) != expected_len:
+            print(f"Warning: Screenshot data length mismatch. Expected {expected_len}, got {len(pixels)}.")
+            if len(pixels) < expected_len:
+                print("Aborting screenshot due to insufficient data.")
+                return
+
         # Convert to PIL Image and flip vertically
-        img = Image.frombytes('RGB', (width, height), pixels)
+        img = Image.frombytes('RGB', (fb_width, fb_height), pixels)
         img = img.transpose(Image.FLIP_TOP_BOTTOM)
         
         # Autocrop to remove empty space (black background)
@@ -171,6 +192,10 @@ class MeshViewer:
                     print(f"Screenshot saved: {file_path}")
             except Exception as e:
                 print(f"Failed to save screenshot: {e}")
+        
+        # Clear any lingering OpenGL errors that might have been triggered 
+        # during the process to prevent ImGui from crashing.
+        _ = self.ctx.error
 
     def get_color_scheme(self):
         """Return color scheme based on current theme."""
@@ -430,11 +455,23 @@ class MeshViewer:
         if glfw.get_key(self.window, glfw.KEY_X) == glfw.PRESS:
             self.object_scale = min(OBJECT_SCALE_MAX, self.object_scale + scale_step)
 
-        # Up/Down: Move camera vertically
+        # Up/Down: Orbit camera vertically
+        orbit_step = self.camera_manual_speed * 10.0 * delta_time
         if glfw.get_key(self.window, glfw.KEY_UP) == glfw.PRESS:
-            self.camera_height = min(CAMERA_HEIGHT_MAX, self.camera_height + height_step)
+            self.camera_vertical_angle = min(math.pi / 2.1, self.camera_vertical_angle + orbit_step)
+            self.camera_rotating = False
         if glfw.get_key(self.window, glfw.KEY_DOWN) == glfw.PRESS:
-            self.camera_height = max(CAMERA_HEIGHT_MIN, self.camera_height - height_step)
+            self.camera_vertical_angle = max(-math.pi / 2.1, self.camera_vertical_angle - orbit_step)
+            self.camera_rotating = False
+
+        # Left/Right: Orbit camera horizontally
+        orbit_step = self.camera_manual_speed * 10.0 * delta_time  # Scaled for better responsiveness
+        if glfw.get_key(self.window, glfw.KEY_LEFT) == glfw.PRESS:
+            self.camera_angle -= orbit_step
+            self.camera_rotating = False
+        if glfw.get_key(self.window, glfw.KEY_RIGHT) == glfw.PRESS:
+            self.camera_angle += orbit_step
+            self.camera_rotating = False
 
     def render_ui(self):
         if not self.show_ui:
@@ -565,6 +602,37 @@ class MeshViewer:
                 
                 imgui.end_tab_item()
 
+            if imgui.begin_tab_item("Camera")[0]:
+                imgui.text("Lens Calibration:")
+                
+                # FOV Slider
+                changed_fov, self.camera_fov = imgui.slider_float("Field of View", self.camera_fov, 1.0, 150.0)
+                
+                # Focal Length (derived from FOV and Sensor Width)
+                # Formula: focal_length = sensor_width / (2 * tan(fov_rad / 2))
+                focal_length = (self.sensor_width / (2.0 * math.tan(math.radians(self.camera_fov) / 2.0)))
+                changed_fl, new_fl = imgui.input_float("Focal Length (mm)", focal_length)
+                if changed_fl and new_fl > 0:
+                    # Reverse: fov = 2 * atan(sensor_width / (2 * focal_length))
+                    self.camera_fov = math.degrees(2.0 * math.atan(self.sensor_width / (2.0 * new_fl)))
+                
+                imgui.separator()
+                imgui.text("Sensor Settings:")
+                _, self.sensor_width = imgui.input_float("Sensor Width (mm)", self.sensor_width)
+                
+                imgui.separator()
+                imgui.text("Clipping Planes:")
+                _, self.camera_near = imgui.input_float("Near Plane", self.camera_near)
+                _, self.camera_far = imgui.input_float("Far Plane", self.camera_far)
+                
+                if imgui.button("Reset Camera Calibration"):
+                    self.camera_fov = CAMERA_FOV
+                    self.camera_near = CAMERA_NEAR_PLANE
+                    self.camera_far = CAMERA_FAR_PLANE
+                    self.sensor_width = 36.0
+
+                imgui.end_tab_item()
+
             imgui.end_tab_bar()
 
         # Update sidebar width to capture user resizing
@@ -576,20 +644,17 @@ class MeshViewer:
         width, height = glfw.get_framebuffer_size(self.window)
         self.ctx.viewport = (0, 0, width, height)
 
-        proj = Matrix44.perspective_projection(CAMERA_FOV, width/height, CAMERA_NEAR_PLANE, CAMERA_FAR_PLANE)
-        
-        # Calculate camera position (horizontal orbit only)
-        if self.camera_rotating:
-            angle = glfw.get_time() * self.camera_rotation_speed
-        else:
-            angle = self.camera_angle
-        vertical_angle = self.camera_vertical_angle
+        proj = Matrix44.perspective_projection(self.camera_fov, width/height, self.camera_near, self.camera_far)
         
         # Calculate camera position with both horizontal and vertical rotation
-        horizontal_distance = math.cos(vertical_angle) * self.camera_distance
-        cam_x = math.sin(angle) * horizontal_distance
-        cam_z = math.cos(angle) * horizontal_distance
-        cam_y = self.camera_height
+        angle = glfw.get_time() * self.camera_rotation_speed if self.camera_rotating else self.camera_angle
+        vertical_angle = self.camera_vertical_angle
+        
+        # Spherical to Cartesian coordinates
+        cam_x = self.camera_distance * math.cos(vertical_angle) * math.sin(angle)
+        cam_y = self.camera_distance * math.sin(vertical_angle)
+        cam_z = self.camera_distance * math.cos(vertical_angle) * math.cos(angle)
+        
         view = Matrix44.look_at([cam_x, cam_y, cam_z], [0, 0, 0], [0, 1, 0])
         
         for buffer in self.mesh_buffers:
