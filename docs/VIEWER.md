@@ -19,6 +19,13 @@ Then press **O** to open a mesh file.
 - Automatic mesh normalization and centering
 - Scene concatenation for multi-object files
 
+### Analysis Dashboard (ImGui)
+- **Real-time Side Panel**: Persistent dashboard for mesh statistics (Press **G** to toggle)
+- **Comparison Table**: Side-by-side comparison of all loaded meshes
+- **Detailed Metrics**: Expandable sections for Statistics, Topology, and Geometry
+- **Distribution Plots**: Visual histograms for face angles and areas
+- **Interactive Controls**: Toggle visualizations and adjust camera directly from the UI
+
 ### Rendering Modes
 - **Solid Mode**: Fill rendering with lighting
 - **Wireframe Mode**: Edge-based visualization  
@@ -63,6 +70,7 @@ Displays comprehensive mesh statistics in the console:
 | Key | Action | Description |
 |-----|--------|-------------|
 | **O** | Open File | Open file dialog to load mesh file(s) - supports multiple selection |
+| **G** | Toggle Dashboard | Show/hide the interactive analysis side panel |
 | **Tab** | Open & Append | Open file dialog to load mesh file(s) and append it to the current mesh buffer |
 | **J** | Solid Mode | Render mesh with filled polygons |
 | **K** | Wireframe Mode | Render mesh with edges only |
@@ -169,6 +177,7 @@ See [samples/mesh/README.md](../samples/mesh/README.md) for detailed information
 
 ### GPU Rendering
 - ModernGL (OpenGL 3.3 Core Profile) with GLSL shaders
+- ImGui (pyimgui) for real-time dashboard rendering
 - Separate buffers for mesh, intersections, normals, point clouds
 - Polygon offset for clean wireframe overlays
 - Adaptive normal length based on mesh size
