@@ -1,6 +1,6 @@
-# Mesh Viewer (`main_mesh.py`)
+# Mesh Viewer (`main.py`)
 
-Full-featured 3D mesh visualization and topology analysis tool built with OpenGL and Python.
+Full-featured 3D mesh visualization and topology analysis tool built with ModernGL and Python.
 
 ## Quick Start
 
@@ -158,7 +158,7 @@ See [samples/mesh/README.md](../samples/mesh/README.md) for detailed information
 
 ### Core Components
 - **`mesh.py`** - Mesh topology analysis and MeshInfo class
-- **`mesh_buffer.py`** - GPU buffer management for mesh rendering
+- **`buffer.py`** - ModernGL buffer management for mesh rendering
 - **`constants.py`** - Global configuration and visualization constants
 
 ### Key Algorithms
@@ -168,7 +168,7 @@ See [samples/mesh/README.md](../samples/mesh/README.md) for detailed information
 - **Mesh Analysis**: Genus calculation, defect computation, connectivity analysis
 
 ### GPU Rendering
-- OpenGL 3.3 Core Profile with GLSL shaders
+- ModernGL (OpenGL 3.3 Core Profile) with GLSL shaders
 - Separate buffers for mesh, intersections, normals, point clouds
 - Polygon offset for clean wireframe overlays
 - Adaptive normal length based on mesh size
