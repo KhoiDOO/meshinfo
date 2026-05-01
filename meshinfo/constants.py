@@ -2,33 +2,24 @@
 VERTEX_SHADER = """
 #version 330 core
 layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aColor;
 
 uniform mat4 mvp;
 uniform float pointSize;
-out vec3 vColor;
 
 void main() {
     gl_Position = mvp * vec4(aPos, 1.0);
     gl_PointSize = pointSize;
-    vColor = aColor;
 }
 """
 
 FRAGMENT_SHADER = """
 #version 330 core
-in vec3 vColor;
 out vec4 FragColor;
 
 uniform vec3 overrideColor;
-uniform bool useOverride;
 
 void main() {
-    if (useOverride) {
-        FragColor = vec4(overrideColor, 1.0);
-    } else {
-        FragColor = vec4(vColor, 1.0);
-    }
+    FragColor = vec4(overrideColor, 1.0);
 }
 """
 
