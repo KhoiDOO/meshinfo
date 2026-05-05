@@ -14,7 +14,10 @@ from imgui.integrations.glfw import GlfwRenderer
 from PIL import Image
 
 from .utils.io import load_mesh
-from .utils.fdialog import open_file_dialog as show_open_file_dialog, save_file_dialog as show_save_file_dialog
+from .utils.fdialog import (
+    open_file_dialog as show_open_file_dialog, 
+    save_file_dialog as show_save_file_dialog
+)
 from meshinfo.mesh import MeshInfo
 from .buffer import MeshBuffer
 from .utils.io import normalize_vertices
@@ -29,6 +32,7 @@ class MeshViewer:
         check_components=False,
         check_intersection=False, 
         check_nonmanifold_vertices=False,
+        check_degenerate_faces=False,
         check_geometry=False,
         check_topology=False,
         verbose=False
@@ -37,6 +41,7 @@ class MeshViewer:
         self.check_components = check_components
         self.check_intersection = check_intersection
         self.check_nonmanifold_vertices = check_nonmanifold_vertices
+        self.check_degenerate_faces = check_degenerate_faces
         self.check_geometry = check_geometry
         self.check_topology = check_topology
         self.verbose = verbose
@@ -240,6 +245,7 @@ class MeshViewer:
             name=name, 
             check_intersection=self.check_intersection, 
             check_nonmanifold_vertices=self.check_nonmanifold_vertices,
+            check_degenerate_faces=self.check_degenerate_faces,
             check_components=self.check_components,
             check_geometry=self.check_geometry,
             check_topology=self.check_topology,
