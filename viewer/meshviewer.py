@@ -25,12 +25,13 @@ from .constants import *
 class MeshViewer:
     def __init__(
         self, 
-        check_components,
-        check_intersection, 
-        check_nonmanifold_vertices,
-        check_geometry,
-        check_topology,
-        verbose
+        files=None,
+        check_components=False,
+        check_intersection=False, 
+        check_nonmanifold_vertices=False,
+        check_geometry=False,
+        check_topology=False,
+        verbose=False
     ):
         self.mode = DEFAULT_MODE
         self.check_components = check_components
@@ -129,6 +130,9 @@ class MeshViewer:
         self.show_ui = True
         self.ui_sidebar_width = UI_SIDEBAR_WIDTH
         self.ui_sidebar_height = UI_SIDEBAR_HEIGHT
+
+        if files:
+            self.load_mesh(files)
 
     def open_file_dialog(self, renew_buffers=True):
         file_paths = show_open_file_dialog(
