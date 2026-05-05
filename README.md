@@ -137,7 +137,6 @@ This project is built upon several powerful open-source libraries:
 - **Window Management**: [GLFW](https://github.com/glfw/glfw) (via [pyglfw](https://github.com/FlorianRhiem/pyglfw))
 - **Numerical Computation**: [NumPy](https://github.com/numpy/numpy)
 - **Math Utilities**: [Pyrr](https://github.com/approxion/pyrr)
-- **Graph Theory**: [NetworkX](https://github.com/networkx/networkx) (for manifold analysis)
 - **Image Processing**: [Pillow](https://github.com/python-pillow/Pillow) (for screenshots)
 - **Terminal Styling**: [Colorama](https://github.com/tartley/colorama)
 
