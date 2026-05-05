@@ -121,10 +121,6 @@ class MeshBuffer:
         # Release old buffers first
         self.release()
 
-        # Split faces into two groups
-        all_indices = np.arange(len(self.mesh.faces))
-        intersected_mask = np.array([i in self.intersected_face_ids for i in all_indices])
-
         # 1. Prepare Main Mesh (Not highlighted)
         main_faces = self.mesh.faces
         self.main_vao, self.main_vbo, self.main_ebo, self.main_index_count = self.setup_buffer(
@@ -133,11 +129,16 @@ class MeshBuffer:
         )
 
         # 2. Prepare Intersected Faces (Selected)
-        intersected_faces = self.mesh.faces[intersected_mask]
-        self.intersected_vao, self.intersected_vbo, self.intersected_ebo, self.intersected_index_count = self.setup_buffer(
-            program,
-            intersected_faces,
-        )
+        if self.intersected_face_ids and len(self.intersected_face_ids) > 0:
+            # Optimization: Direct indexing is faster than mask
+            intersected_faces = self.mesh.faces[self.intersected_face_ids]
+            self.intersected_vao, self.intersected_vbo, self.intersected_ebo, self.intersected_index_count = self.setup_buffer(
+                program,
+                intersected_faces,
+            )
+        else:
+            self.intersected_vao = self.intersected_vbo = self.intersected_ebo = None
+            self.intersected_index_count = 0
 
         # 3. Prepare Normals
         self.face_normals_vao, self.face_normals_vbo, self.face_normals_count = self.setup_face_normals_buffer(program)
