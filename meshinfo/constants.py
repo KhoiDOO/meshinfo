@@ -7,6 +7,7 @@ CHECK_COMPONENTS_SUGGESTION_PROMPT = "Turn on connected component checking for m
 CHECK_TOPOLOGY_SUGGESTION_PROMPT = "Turn on topology checking for more detailed analysis (may increase processing time)."
 CHECK_INTERSECTION_SUGGESTION_PROMPT = None
 CHECK_MANIFOLD_VERTICES_SUGGESTION_PROMPT = None
+CHECK_DEGENERATE_FACES_SUGGESTION_PROMPT = None
 
 # Mesh Info Formatting Constants
 FORMAT_LABEL_WIDTH = 40  # Width for label formatting in mesh info output
@@ -17,6 +18,7 @@ FORMAT_PRECISION_COORD = 3  # Decimal places for coordinate formatting
 DEFAULT_CHECK_COMPONENTS = False
 DEFAULT_CHECK_INTERSECTION = False
 DEFAULT_CHECK_NONMANIFOLD_VERTICES = False
+DEFAULT_CHECK_DEGENERATE_FACES = False
 DEFAULT_CHECK_GEOMETRY = False
 DEFAULT_CHECK_TOPOLOGY = False
 DEFAULT_VERBOSE = False
