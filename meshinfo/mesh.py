@@ -2,9 +2,10 @@ import trimesh
 import numpy as np
 import meshlib.mrmeshpy as mrmeshpy
 import meshlib.mrmeshnumpy as mrmeshnumpy
-import networkx as nx
+import multiprocessing
+from functools import partial
 from colorama import Fore, Style, init
-from . import format_value, format_bool
+from .utils import format_value, format_bool
 
 from .constants import *
 
@@ -32,6 +33,45 @@ def get_intersected_tria_ids(mesh: trimesh.Trimesh) -> tuple[list[int], int]:
 
     return list(intersected_ids), len(pairs)
 
+def _is_butterfly_vertex(vertex_idx, face_indices, mesh_faces, already_nonmanifold):
+    if vertex_idx in already_nonmanifold or len(face_indices) < 2:
+        return None
+    
+    num_local_faces = len(face_indices)
+    local_faces = mesh_faces[face_indices]
+    
+    # Adjacency list for faces sharing this vertex
+    adj = [[] for _ in range(num_local_faces)]
+    for i in range(num_local_faces):
+        f1 = local_faces[i]
+        for j in range(i + 1, num_local_faces):
+            f2 = local_faces[j]
+            # Two faces are adjacent if they share an edge containing vertex_idx.
+            # Since they already share vertex_idx, they share an edge if they share one more vertex.
+            # Small set intersection is fast.
+            if len(set(f1) & set(f2)) >= 2:
+                adj[i].append(j)
+                adj[j].append(i)
+    
+    # BFS to check if all faces form a single connected component
+    visited = [False] * num_local_faces
+    queue = [0]
+    visited[0] = True
+    count = 1
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                count += 1
+                queue.append(v)
+                
+    if count < num_local_faces:
+        return vertex_idx
+    return None
+
 def get_nonmanifold_vertices(mesh: trimesh.Trimesh, edges_unique: np.ndarray, edges_counts: np.ndarray) -> np.ndarray:
     """
     Find vertices that are non-manifold.
@@ -49,27 +89,38 @@ def get_nonmanifold_vertices(mesh: trimesh.Trimesh, edges_unique: np.ndarray, ed
     
     # 2. Check for "butterfly" vertices (connected components of adjacent faces)
     # trimesh.vertex_faces is a padded 2D array, where -1 indicates no face
-    for vertex_idx, face_indices in enumerate(mesh.vertex_faces):
+    vertex_faces = mesh.vertex_faces
+    mesh_faces = mesh.faces
+    
+    # Prepare arguments for parallel processing
+    tasks = []
+    for vertex_idx, face_indices in enumerate(vertex_faces):
         # Filter out the padding (-1)
-        face_indices = face_indices[face_indices != -1]
-        
-        if vertex_idx in nonmanifold_vertices or len(face_indices) < 2:
-            continue
-        
-        # Build a local adjacency graph for faces sharing this vertex
-        local_faces = mesh.faces[face_indices]
-        G = nx.Graph()
-        G.add_nodes_from(range(len(face_indices)))
-        
-        for i in range(len(face_indices)):
-            for j in range(i + 1, len(face_indices)):
-                # Share an edge if they share 2 vertices (one is vertex_idx)
-                shared_v = np.intersect1d(local_faces[i], local_faces[j])
-                if len(shared_v) >= 2:
-                    G.add_edge(i, j)
-        
-        if not nx.is_connected(G):
-            nonmanifold_vertices.add(vertex_idx)
+        valid_face_indices = face_indices[face_indices != -1]
+        if vertex_idx not in nonmanifold_vertices and len(valid_face_indices) >= 2:
+            tasks.append((vertex_idx, valid_face_indices))
+    if tasks:
+        if len(tasks) < 10000:
+            # Sequential for small number of tasks to avoid multiprocessing overhead
+            results = [_is_butterfly_vertex(v_idx, f_indices, mesh_faces, nonmanifold_vertices) for v_idx, f_indices in tasks]
+        else:
+            # Use multiprocessing to check vertices in parallel for large meshes
+            num_cores = multiprocessing.cpu_count()
+            chunksize = max(1, len(tasks) // (num_cores * 4))
+
+            check_func = partial(
+                _is_butterfly_vertex, 
+                mesh_faces=mesh_faces, 
+                already_nonmanifold=nonmanifold_vertices
+            )
+
+            with multiprocessing.Pool(processes=num_cores) as pool:
+                results = pool.starmap(check_func, tasks, chunksize=chunksize)
+
+        for v in results:
+            if v is not None:
+                nonmanifold_vertices.add(v)
+
     
     return np.array(sorted(list(nonmanifold_vertices)), dtype=np.int32)
 
@@ -148,9 +199,11 @@ class MeshInfo:
         # Connected Components
         if self.checked_components:
             if verbose: print(f"{Fore.YELLOW}Computing connected components...{Style.RESET_ALL}")
-            self.body_count = mesh.body_count
+            # Optimization: split only once and filter for watertight components
             self.non_watertight_components = mesh.split(only_watertight=False)
-            self.watertight_components = mesh.split(only_watertight=True)
+            self.watertight_components = [c for c in self.non_watertight_components if c.is_watertight]
+            self.body_count = mesh.body_count
+            
             self.wt_ccs_f_num = [len(c.faces) for c in self.watertight_components]
             self.nwt_ccs_f_num = [len(c.faces) for c in self.non_watertight_components]
             self.wt_ccs_v_num = [len(c.vertices) for c in self.watertight_components]
