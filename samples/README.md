@@ -24,6 +24,9 @@ This folder contains test mesh files with specific topology characteristics for 
 - Press `H`: Should show no edge highlights (no non-manifold edges)
 - Press `V`: Should show no vertex highlights (no non-manifold vertices)
 
+**Source**
+- This object is taken from [ABO](https://amazon-berkeley-objects.s3.amazonaws.com/index.html) dataset
+
 ---
 
 ### 2. `(non-manifold edge) dolphin.obj`
@@ -46,6 +49,9 @@ This folder contains test mesh files with specific topology characteristics for 
 - Testing edge-based topology validation
 - Demonstrating vertex connectivity analysis
 - Verifying non-manifold detection algorithms
+
+**Source**
+- This mesh is taken from [Pytorch3D](https://github.com/facebookresearch/pytorch3d) examples
 
 ---
 
@@ -70,7 +76,16 @@ This folder contains test mesh files with specific topology characteristics for 
 - Validating FCL integration
 - Demonstrating geometric vs. topological validity
 
+**Source**
+- This mesh is taken from [Objarverse](https://github.com/allenai/objaverse-xl) dataset.
+
 ---
+
+### 4. `(trellis) the_forgotten_knight.ply`
+**Source**
+- This mesh is taken from [TRELLIS.2](https://github.com/microsoft/TRELLIS.2) examples.
+
+### 5. `(colored) seashell.obj`
 
 ## Multi-Mesh Comparison
 
